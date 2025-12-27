@@ -10,6 +10,8 @@ import 'app/routes.dart';
 import 'app/theme/app_theme.dart';
 import 'core/services/firebase_options.dart';
 import 'features/tasks/domain/models/task.dart';
+import 'features/activities/domain/models/activity_category.dart';
+import 'features/activities/domain/models/activity_session.dart';
 import 'shared/providers/app_providers.dart';
 
 void main() async {
@@ -33,6 +35,9 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(TaskAdapter());
   Hive.registerAdapter(TaskPriorityAdapter());
+  Hive.registerAdapter(ActivityCategoryAdapter());
+  Hive.registerAdapter(ActivityIconAdapter());
+  Hive.registerAdapter(ActivitySessionAdapter());
 
   runApp(
     ProviderScope(

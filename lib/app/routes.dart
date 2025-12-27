@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/timer/presentation/pages/timer_page.dart';
 import '../features/tasks/presentation/pages/tasks_page.dart';
-import '../features/statistics/presentation/pages/statistics_page.dart';
+import '../features/activities/presentation/pages/statistics_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/signup_page.dart';
