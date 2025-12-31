@@ -150,14 +150,8 @@ class ActivitiesNotifier extends StateNotifier<ActivitiesState> {
 
       var categories = _categoriesBox.values.toList();
       
-      // Initialize with defaults if empty
-      if (categories.isEmpty) {
-        final defaults = getDefaultCategories();
-        for (final category in defaults) {
-          await _categoriesBox.put(category.id, category);
-        }
-        categories = defaults;
-      }
+      // Start with empty categories - user creates their own
+      // No default categories are added automatically
 
       // Sort by sortOrder
       categories.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -205,8 +199,8 @@ class ActivitiesNotifier extends StateNotifier<ActivitiesState> {
 
   /// Delete a category
   Future<void> deleteCategory(String id) async {
-    final category = state.categories.firstWhere((c) => c.id == id);
-    if (category.isDefault) return; // Can't delete defaults
+    final categoryIndex = state.categories.indexWhere((c) => c.id == id);
+    if (categoryIndex == -1) return; // Category not found
 
     await _categoriesBox.delete(id);
     
@@ -252,6 +246,17 @@ class ActivitiesNotifier extends StateNotifier<ActivitiesState> {
     await _sessionsBox.delete(id);
     state = state.copyWith(
       sessions: state.sessions.where((s) => s.id != id).toList(),
+    );
+  }
+
+  /// Clear all categories and sessions
+  Future<void> clearAllData() async {
+    await _categoriesBox.clear();
+    await _sessionsBox.clear();
+    state = state.copyWith(
+      categories: [],
+      sessions: [],
+      selectedCategoryId: null,
     );
   }
 

@@ -4,14 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app/routes.dart';
 import 'app/theme/app_theme.dart';
 import 'core/services/firebase_options.dart';
+import 'core/services/purchase_service.dart';
 import 'features/tasks/domain/models/task.dart';
 import 'features/activities/domain/models/activity_category.dart';
 import 'features/activities/domain/models/activity_session.dart';
+import 'features/wellness/domain/models/focus_streak.dart';
+import 'features/wellness/domain/models/custom_counter.dart';
+import 'features/wellness/domain/models/personal_goal.dart';
 import 'shared/providers/app_providers.dart';
 
 void main() async {
@@ -38,6 +43,20 @@ void main() async {
   Hive.registerAdapter(ActivityCategoryAdapter());
   Hive.registerAdapter(ActivityIconAdapter());
   Hive.registerAdapter(ActivitySessionAdapter());
+  // Wellness adapters
+  Hive.registerAdapter(FocusStreakAdapter());
+  Hive.registerAdapter(CustomCounterAdapter());
+  Hive.registerAdapter(CounterTypeAdapter());
+  Hive.registerAdapter(CounterEntryAdapter());
+  Hive.registerAdapter(PersonalGoalAdapter());
+  Hive.registerAdapter(GoalTypeAdapter());
+
+  // Initialize Purchase Service (RevenueCat)
+  // If user is logged in, pass their ID for cross-device sync
+  final currentUser = FirebaseAuth.instance.currentUser;
+  await PurchaseService.instance.initialize(
+    userId: currentUser?.uid,
+  );
 
   runApp(
     ProviderScope(

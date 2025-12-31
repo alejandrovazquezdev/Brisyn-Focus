@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -284,14 +287,52 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Social sign in
-                    SocialSignInButton(
-                      icon: 'assets/icons/google.svg',
-                      label: 'Continue with Google',
-                      onPressed: authState.status == AuthStatus.loading
-                          ? null
-                          : _handleGoogleSignIn,
-                    ),
+                    // Social sign in - only show on mobile/web
+                    if (kIsWeb || Platform.isIOS || Platform.isAndroid)
+                      SocialSignInButton(
+                        icon: 'assets/icons/google.svg',
+                        label: 'Continue with Google',
+                        onPressed: authState.status == AuthStatus.loading
+                            ? null
+                            : _handleGoogleSignIn,
+                      )
+                    else
+                      // Desktop: Show message that Google Sign-In is not available
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkCardBackground
+                              : AppColors.lightCardBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.lightBorder,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Google Sign-In is available on mobile apps. Use email sign-up on desktop.',
+                                style: AppTypography.bodySmall(
+                                  isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 32),
 
                     // Sign in link
@@ -311,6 +352,20 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                           child: const Text('Sign In'),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Skip signup button
+                    TextButton(
+                      onPressed: () => context.go(AppRoutes.timer),
+                      child: Text(
+                        'Continue without account',
+                        style: AppTypography.bodyMedium(
+                          isDark
+                              ? AppColors.darkTextTertiary
+                              : AppColors.lightTextTertiary,
+                        ),
+                      ),
                     ),
                   ],
                 ),

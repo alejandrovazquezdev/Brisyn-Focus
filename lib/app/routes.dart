@@ -10,6 +10,7 @@ import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/signup_page.dart';
 import '../features/auth/presentation/pages/verify_email_page.dart';
 import '../features/premium/presentation/pages/premium_page.dart';
+import '../features/wellness/presentation/pages/wellness_page.dart';
 import '../shared/widgets/main_scaffold.dart';
 
 /// Route names
@@ -27,6 +28,7 @@ class AppRoutes {
   static const String verifyEmail = '/verify-email';
   static const String premium = '/premium';
   static const String onboarding = '/onboarding';
+  static const String wellness = '/wellness';
 }
 
 /// Router provider
@@ -94,6 +96,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.premium,
         name: 'premium',
         builder: (context, state) => const PremiumPage(),
+      ),
+
+      // Wellness route
+      GoRoute(
+        path: AppRoutes.wellness,
+        name: 'wellness',
+        builder: (context, state) => const WellnessPage(),
       ),
     ],
 

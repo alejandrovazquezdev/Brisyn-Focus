@@ -1,7 +1,12 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import '../models/app_user.dart';
+
+// iOS/macOS Client ID for Google Sign-In (uses same iOS client for macOS)
+const _iosClientId = '150222395140-i35k566eods32brujsudb2s1mjkubur4.apps.googleusercontent.com';
 
 /// Authentication result wrapper
 class AuthResult {
@@ -46,6 +51,8 @@ class AuthService {
         _googleSignIn = googleSignIn ??
             GoogleSignIn(
               scopes: ['email', 'profile'],
+              // Use iOS client ID for macOS (same bundle, no secret required)
+              clientId: !kIsWeb && (Platform.isMacOS || Platform.isIOS) ? _iosClientId : null,
             );
 
   /// Get current user stream
@@ -218,18 +225,26 @@ class AuthService {
         credential = await _auth.signInWithPopup(googleProvider);
       } else {
         // Mobile/Desktop: Use GoogleSignIn package
-        final googleUser = await _googleSignIn.signIn();
-        if (googleUser == null) {
-          return AuthResult.failure('Google sign in was cancelled');
+        try {
+          final googleUser = await _googleSignIn.signIn();
+          if (googleUser == null) {
+            return AuthResult.failure('Google sign in was cancelled');
+          }
+
+          final googleAuth = await googleUser.authentication;
+          final authCredential = GoogleAuthProvider.credential(
+            accessToken: googleAuth.accessToken,
+            idToken: googleAuth.idToken,
+          );
+
+          credential = await _auth.signInWithCredential(authCredential);
+        } catch (e) {
+          // Google Sign-In may fail on simulator or if not configured
+          debugPrint('Google Sign-In error: $e');
+          return AuthResult.failure(
+            'Google Sign-In is not available. Please use email sign-in or try on a real device.',
+          );
         }
-
-        final googleAuth = await googleUser.authentication;
-        final authCredential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
-
-        credential = await _auth.signInWithCredential(authCredential);
       }
 
       final user = credential.user;
@@ -249,7 +264,7 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('Failed to sign in with Google: ${e.toString()}');
+      return AuthResult.failure('Google Sign-In failed: ${e.toString()}');
     }
   }
 

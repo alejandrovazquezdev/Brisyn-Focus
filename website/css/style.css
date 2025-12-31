@@ -489,6 +489,15 @@ img {
     color: var(--color-text-secondary);
 }
 
+.pricing-features li.feature-highlight {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.pricing-features li.feature-highlight strong {
+    color: var(--color-text-primary);
+}
+
 .pricing-features svg {
     color: var(--color-success);
     flex-shrink: 0;

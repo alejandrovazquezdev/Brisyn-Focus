@@ -24,16 +24,34 @@ class WeeklyRadarChart extends StatelessWidget {
     if (progressData.isEmpty) {
       return SizedBox(
         height: size,
-        child: const Center(
-          child: Text('No activities yet'),
+        child: Center(
+          child: Text(
+            'No activities yet',
+            style: TextStyle(
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
         ),
       );
     }
 
     final categories = progressData.values.toList();
     final count = categories.length;
-    final angleStep = (2 * math.pi) / count;
-    final radius = size / 2 - 60; // Leave space for labels
+    
+    // For single category, show a different view
+    if (count == 1) {
+      return _SingleCategoryView(
+        progress: categories.first,
+        size: size,
+        isDark: isDark,
+      );
+    }
+    
+    // Ensure minimum 3 points for a proper radar chart
+    final effectiveCount = count < 3 ? 3 : count;
+    final angleStep = (2 * math.pi) / effectiveCount;
+    final radius = size / 2 - 55; // Leave space for labels
+    final labelRadius = radius + 40;
 
     return SizedBox(
       width: size,
@@ -45,17 +63,17 @@ class WeeklyRadarChart extends StatelessWidget {
           accentColor: theme.colorScheme.primary,
         ),
         child: Stack(
+          clipBehavior: Clip.none,
           children: List.generate(count, (index) {
             final progress = categories[index];
             final angle = -math.pi / 2 + (index * angleStep);
-            final labelRadius = radius + 45;
 
             final x = size / 2 + labelRadius * math.cos(angle);
             final y = size / 2 + labelRadius * math.sin(angle);
 
             return Positioned(
-              left: x - 35,
-              top: y - 25,
+              left: x - 32,
+              top: y - 28,
               child: _CategoryLabel(
                 progress: progress,
                 isDark: isDark,
@@ -63,6 +81,121 @@ class WeeklyRadarChart extends StatelessWidget {
             );
           }),
         ),
+      ),
+    );
+  }
+}
+
+/// Special view for when there's only 1 category
+class _SingleCategoryView extends StatelessWidget {
+  final WeeklyProgress progress;
+  final double size;
+  final bool isDark;
+
+  const _SingleCategoryView({
+    required this.progress,
+    required this.size,
+    required this.isDark,
+  });
+
+  Color _getStatusColor() {
+    switch (progress.status) {
+      case ProgressStatus.complete:
+        return const Color(0xFF4ECDC4);
+      case ProgressStatus.partial:
+        return const Color(0xFFFFD93D);
+      case ProgressStatus.behind:
+        return const Color(0xFFFF6B6B);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = Color(progress.category.colorValue);
+    final statusColor = _getStatusColor();
+    final percentage = (progress.percentage * 100).round();
+
+    return SizedBox(
+      width: size,
+      height: size * 0.8,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Circular progress indicator
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: size * 0.5,
+                height: size * 0.5,
+                child: CircularProgressIndicator(
+                  value: progress.percentage.clamp(0.0, 1.0),
+                  strokeWidth: 12,
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  valueColor: AlwaysStoppedAnimation(color),
+                  strokeCap: StrokeCap.round,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SvgPicture.asset(
+                      getIconAsset(progress.category.icon),
+                      width: 32,
+                      height: 32,
+                      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$percentage%',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Category name and progress
+          Text(
+            progress.category.name,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${progress.completedDays}/${progress.goalDays} days this week',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

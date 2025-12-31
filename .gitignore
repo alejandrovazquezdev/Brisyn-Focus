@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase/Google credentials - NEVER COMMIT THESE
+**/google-services.json
+**/GoogleService-Info.plist
+firebase/functions/node_modules/
+firebase/functions/.env
+.env
+.env.*
+
+# API Keys and secrets
+**/secrets/
+*.keystore
+*.jks
+key.properties
+
+# Local configuration
+local.properties

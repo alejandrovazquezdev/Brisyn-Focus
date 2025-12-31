@@ -280,20 +280,23 @@ class _TimerPageState extends ConsumerState<TimerPage>
                   timerState.status == TimerStatus.idle)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [15, 25, 50, 90].map((minutes) {
-                      final isSelected = timerState.focusDuration == minutes;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: _PresetChip(
-                          label: '$minutes',
-                          isSelected: isSelected,
-                          onTap: () =>
-                              ref.read(timerProvider.notifier).applyPreset(minutes),
-                        ),
-                      );
-                    }).toList(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [15, 25, 50, 90].map((minutes) {
+                        final isSelected = timerState.focusDuration == minutes;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: _PresetChip(
+                            label: '$minutes min',
+                            isSelected: isSelected,
+                            onTap: () =>
+                                ref.read(timerProvider.notifier).applyPreset(minutes),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
 
@@ -527,7 +530,7 @@ class _PresetChip extends StatelessWidget {
           ),
         ),
         child: Text(
-          '$label min',
+          label,
           style: TextStyle(
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -645,32 +648,36 @@ class _TimerSettingsSheetState extends State<_TimerSettingsSheet> {
         color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle bar
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                borderRadius: BorderRadius.circular(2),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Title
-          Text(
-            'Timer Settings',
-            style: AppTypography.titleLarge(
-              isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            // Title
+            Text(
+              'Timer Settings',
+              style: AppTypography.titleLarge(
+                isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
           // Focus Duration
           _SettingRow(
@@ -771,8 +778,9 @@ class _TimerSettingsSheetState extends State<_TimerSettingsSheet> {
           ),
 
           // Bottom safe area padding
-          SizedBox(height: MediaQuery.of(context).viewPadding.bottom),
+          SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 16),
         ],
+        ),
       ),
     );
   }

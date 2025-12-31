@@ -1,17 +1,250 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/routes.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../../core/services/purchase_service.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 
-class PremiumPage extends StatelessWidget {
+enum SubscriptionPlan { monthly, yearly }
+
+class PremiumPage extends ConsumerStatefulWidget {
   const PremiumPage({super.key});
+
+  @override
+  ConsumerState<PremiumPage> createState() => _PremiumPageState();
+}
+
+class _PremiumPageState extends ConsumerState<PremiumPage> {
+  SubscriptionPlan _selectedPlan = SubscriptionPlan.yearly;
+  bool _isLoading = false;
+
+  String get _planName =>
+      _selectedPlan == SubscriptionPlan.yearly ? 'Yearly' : 'Monthly';
+
+  String get _planPrice =>
+      _selectedPlan == SubscriptionPlan.yearly ? '\$9.99' : '\$1.99';
+
+  String get _planPeriod =>
+      _selectedPlan == SubscriptionPlan.yearly ? '/year' : '/month';
+
+  Future<void> _subscribe() async {
+    // Check if user is logged in
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Show login required dialog
+      await _showLoginRequiredDialog();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Use PurchaseService
+      final purchaseService = PurchaseService.instance;
+      final productId = _selectedPlan == SubscriptionPlan.yearly
+          ? 'brisyn_pro_yearly'
+          : 'brisyn_pro_monthly';
+
+      final result = await purchaseService.purchase(productId);
+
+      if (!mounted) return;
+
+      if (result.success) {
+        // Show success dialog
+        await _showSuccessDialog();
+      } else {
+        // Show error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Purchase failed'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _showLoginRequiredDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person_outline, color: AppColors.warning),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Login Required'),
+            ),
+          ],
+        ),
+        content: const Text(
+          'You need to sign in to subscribe to Brisyn Pro. Your subscription will be linked to your account so you can use it across all your devices.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push(AppRoutes.login);
+            },
+            child: const Text('Sign In'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSuccessDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check, color: AppColors.success),
+            ),
+            const SizedBox(width: 12),
+            const Text('Welcome to Pro!'),
+          ],
+        ),
+        content: Text(
+          'Your $_planName subscription is now active. Enjoy unlimited access to all premium features!',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back to settings
+            },
+            child: const Text('Let\'s Go!'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _restorePurchases() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final purchaseService = PurchaseService.instance;
+      final result = await purchaseService.restorePurchases();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message ?? 'Restore completed'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      if (result.success) {
+        // Close page if restored successfully
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Developer mode - enables all premium features for testing
+  Future<void> _enableDevMode() async {
+    if (!kDebugMode) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.developer_mode, color: AppColors.warning),
+            SizedBox(width: 12),
+            Text('Developer Mode'),
+          ],
+        ),
+        content: const Text(
+          'This will enable all premium features for testing purposes. This only works in debug mode.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await PurchaseService.instance.enableDevMode();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Developer mode enabled! All premium features unlocked.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accentColor = theme.colorScheme.primary;
+    final isLoggedIn = ref.watch(isLoggedInProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -28,140 +261,218 @@ class PremiumPage extends StatelessWidget {
             ),
           ),
         ),
+        actions: [
+          // Developer mode button (only in debug)
+          if (kDebugMode)
+            IconButton(
+              onPressed: _enableDevMode,
+              icon: const Icon(Icons.developer_mode),
+              tooltip: 'Developer Mode',
+            ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Pro Icon
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [accentColor, accentColor.withOpacity(0.7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/zap.svg',
-                  width: 40,
-                  height: 40,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Unlock Your Full Potential',
-              style: AppTypography.headlineSmall(
-                isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Get the most out of Brisyn Focus with Pro features',
-              style: AppTypography.bodyMedium(
-                isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.lightTextSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 32),
-
-            // Features List
-            _FeatureItem(
-              icon: 'assets/icons/cloud.svg',
-              title: 'Cloud Sync',
-              description: 'Sync your data across all devices',
-            ),
-            _FeatureItem(
-              icon: 'assets/icons/statistics.svg',
-              title: 'Advanced Analytics',
-              description: 'Detailed reports and productivity insights',
-            ),
-            _FeatureItem(
-              icon: 'assets/icons/layers.svg',
-              title: 'Advanced Tasks',
-              description: 'Recurring tasks, subtasks, and Kanban view',
-            ),
-            _FeatureItem(
-              icon: 'assets/icons/notification.svg',
-              title: 'Smart Reminders',
-              description: 'AI-powered optimal focus time suggestions',
-            ),
-            _FeatureItem(
-              icon: 'assets/icons/trophy.svg',
-              title: 'Leaderboards & Challenges',
-              description: 'Compete with friends and complete weekly challenges',
-            ),
-
-            const SizedBox(height: 32),
-
-            // Pricing Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _PricingCard(
-                    title: 'Monthly',
-                    price: '\$4.99',
-                    period: '/month',
-                    isPopular: false,
-                    onTap: () {
-                      // TODO: Handle monthly subscription
-                    },
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Pro Icon
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          accentColor,
+                          accentColor.withValues(alpha: 0.7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/zap.svg',
+                        width: 40,
+                        height: 40,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _PricingCard(
-                    title: 'Yearly',
-                    price: '\$39.99',
-                    period: '/year',
-                    isPopular: true,
-                    savings: 'Save 33%',
-                    onTap: () {
-                      // TODO: Handle yearly subscription
-                    },
+
+                  const SizedBox(height: 24),
+
+                  Text(
+                    'Unlock Your Full Potential',
+                    style: AppTypography.headlineSmall(
+                      isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.lightTextPrimary,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              ],
-            ),
 
-            const SizedBox(height: 24),
+                  const SizedBox(height: 8),
 
-            TextButton(
-              onPressed: () {
-                // TODO: Restore purchases
-              },
-              child: const Text('Restore Purchases'),
-            ),
+                  Text(
+                    'Get the most out of Brisyn Focus with Pro features',
+                    style: AppTypography.bodyMedium(
+                      isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
 
-            const SizedBox(height: 16),
+                  const SizedBox(height: 32),
 
-            Text(
-              'Cancel anytime. Subscriptions automatically renew unless cancelled.',
-              style: AppTypography.bodySmall(
-                isDark
-                    ? AppColors.darkTextTertiary
-                    : AppColors.lightTextTertiary,
+                  // Premium Features List (only 2 main features)
+                  const _FeatureItem(
+                    icon: 'assets/icons/cloud.svg',
+                    title: 'Cloud Sync',
+                    description: 'Sync your data across all devices automatically',
+                  ),
+                  const _FeatureItem(
+                    icon: 'assets/icons/layers.svg',
+                    title: 'Advanced Tasks',
+                    description: 'Recurring tasks, subtasks, and Kanban view',
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Login warning if not logged in
+                  if (!isLoggedIn) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            color: AppColors.warning,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Sign in to subscribe and sync across devices',
+                              style: AppTypography.bodySmall(
+                                isDark
+                                    ? AppColors.darkTextPrimary
+                                    : AppColors.lightTextPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Plan Selection Cards
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PlanCard(
+                          title: 'Monthly',
+                          price: '\$1.99',
+                          period: '/month',
+                          isSelected: _selectedPlan == SubscriptionPlan.monthly,
+                          onTap: () {
+                            setState(
+                              () => _selectedPlan = SubscriptionPlan.monthly,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _PlanCard(
+                          title: 'Yearly',
+                          price: '\$9.99',
+                          period: '/year',
+                          isSelected: _selectedPlan == SubscriptionPlan.yearly,
+                          savings: 'Save 58%',
+                          onTap: () {
+                            setState(
+                              () => _selectedPlan = SubscriptionPlan.yearly,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  TextButton(
+                    onPressed: _isLoading ? null : _restorePurchases,
+                    child: const Text('Restore Purchases'),
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-          ],
-        ),
+          ),
+
+          // Bottom Subscribe Button
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _subscribe,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              isLoggedIn
+                                  ? 'Subscribe $_planName for $_planPrice$_planPeriod'
+                                  : 'Sign in to Subscribe',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Cancel anytime. Subscriptions automatically renew unless cancelled.',
+                    style: AppTypography.bodySmall(
+                      isDark
+                          ? AppColors.darkTextTertiary
+                          : AppColors.lightTextTertiary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -192,7 +503,7 @@ class _FeatureItem extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.1),
+              color: accentColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -234,19 +545,19 @@ class _FeatureItem extends StatelessWidget {
   }
 }
 
-class _PricingCard extends StatelessWidget {
+class _PlanCard extends StatelessWidget {
   final String title;
   final String price;
   final String period;
-  final bool isPopular;
+  final bool isSelected;
   final String? savings;
   final VoidCallback onTap;
 
-  const _PricingCard({
+  const _PlanCard({
     required this.title,
     required this.price,
     required this.period,
-    required this.isPopular,
+    required this.isSelected,
     this.savings,
     required this.onTap,
   });
@@ -259,36 +570,58 @@ class _PricingCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isPopular
-              ? accentColor.withOpacity(0.1)
+          color: isSelected
+              ? accentColor.withValues(alpha: 0.1)
               : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isPopular
+            color: isSelected
                 ? accentColor
                 : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-            width: isPopular ? 2 : 1,
+            width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-            if (isPopular) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Most Popular',
-                  style: AppTypography.labelSmall(Colors.white),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
+            // Selected indicator
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (isSelected)
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(
               title,
               style: AppTypography.titleMedium(
@@ -319,10 +652,17 @@ class _PricingCard extends StatelessWidget {
               ],
             ),
             if (savings != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                savings!,
-                style: AppTypography.labelSmall(AppColors.success),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  savings!,
+                  style: AppTypography.labelSmall(AppColors.success),
+                ),
               ),
             ],
           ],

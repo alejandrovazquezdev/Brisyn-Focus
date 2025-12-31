@@ -6,6 +6,11 @@ import '../../../../app/theme/colors.dart';
 import '../../domain/models/activity_category.dart';
 import '../providers/activities_providers.dart';
 
+/// Parse color hex string (6 chars like 'FF6B6B') to Color
+Color _parseColor(String hex) {
+  return Color(int.parse('FF$hex', radix: 16));
+}
+
 class CategoryPickerSheet extends ConsumerStatefulWidget {
   final ActivityCategory? editCategory;
 
@@ -25,17 +30,18 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
   late String _selectedColor;
   late int _weeklyGoal;
 
+  // Colors stored as 6-char hex (without 0xFF prefix, matching the model format)
   final List<String> _colorOptions = [
-    '0xFFFF6B6B', // Red
-    '0xFFFF8E53', // Orange
-    '0xFFFFD93D', // Yellow
-    '0xFF4ECDC4', // Teal
-    '0xFF45B7D1', // Blue
-    '0xFF6C5CE7', // Purple
-    '0xFFA29BFE', // Lavender
-    '0xFFE84393', // Pink
-    '0xFF00B894', // Green
-    '0xFF636E72', // Gray
+    'FF6B6B', // Red
+    'FF8E53', // Orange
+    'FFD93D', // Yellow
+    '4ECDC4', // Teal
+    '45B7D1', // Blue
+    '6C5CE7', // Purple
+    'A29BFE', // Lavender
+    'E84393', // Pink
+    '00B894', // Green
+    '636E72', // Gray
   ];
 
   @override
@@ -145,7 +151,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: Color(int.parse(_selectedColor)).withValues(alpha: 0.15),
+                        color: _parseColor(_selectedColor).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Center(
@@ -154,7 +160,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                           width: 40,
                           height: 40,
                           colorFilter: ColorFilter.mode(
-                            Color(int.parse(_selectedColor)),
+                            _parseColor(_selectedColor),
                             BlendMode.srcIn,
                           ),
                         ),
@@ -237,7 +243,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: Color(int.parse(colorHex)),
+                            color: _parseColor(colorHex),
                             shape: BoxShape.circle,
                             border: isSelected
                                 ? Border.all(color: Colors.white, width: 3)
@@ -245,7 +251,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: Color(int.parse(colorHex)).withValues(alpha: 0.5),
+                                      color: _parseColor(colorHex).withValues(alpha: 0.5),
                                       blurRadius: 8,
                                       spreadRadius: 2,
                                     ),
@@ -287,14 +293,14 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? Color(int.parse(_selectedColor)).withValues(alpha: 0.2)
+                                  ? _parseColor(_selectedColor).withValues(alpha: 0.2)
                                   : isDark
                                       ? Colors.white.withValues(alpha: 0.05)
                                       : Colors.black.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(12),
                               border: isSelected
                                   ? Border.all(
-                                      color: Color(int.parse(_selectedColor)),
+                                      color: _parseColor(_selectedColor),
                                       width: 2,
                                     )
                                   : null,
@@ -306,7 +312,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                                 height: 24,
                                 colorFilter: ColorFilter.mode(
                                   isSelected
-                                      ? Color(int.parse(_selectedColor))
+                                      ? _parseColor(_selectedColor)
                                       : isDark
                                           ? Colors.white54
                                           : Colors.black54,
