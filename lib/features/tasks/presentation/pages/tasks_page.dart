@@ -5,25 +5,33 @@ import 'package:intl/intl.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../premium/presentation/providers/premium_providers.dart';
 import '../../domain/models/task.dart';
 import '../providers/tasks_providers.dart';
+import '../widgets/kanban_view.dart';
+import '../widgets/recurrence_selector.dart';
+import '../widgets/subtasks_list.dart';
 
 class TasksPage extends ConsumerWidget {
   const TasksPage({super.key});
 
   void _showAddTaskDialog(BuildContext context, WidgetRef ref) {
+    final isPremium = ref.read(isPremiumProvider);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _AddTaskSheet(
-        onAdd: (title, description, priority, dueDate, pomodoros) {
+        isPremium: isPremium,
+        onAdd: (title, description, priority, dueDate, pomodoros, recurrenceType) {
           ref.read(tasksProvider.notifier).addTask(
                 title: title,
                 description: description,
                 priority: priority,
                 dueDate: dueDate,
                 estimatedPomodoros: pomodoros,
+                recurrenceType: recurrenceType,
               );
         },
       ),
@@ -31,13 +39,16 @@ class TasksPage extends ConsumerWidget {
   }
 
   void _showEditTaskDialog(BuildContext context, WidgetRef ref, Task task) {
+    final isPremium = ref.read(isPremiumProvider);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _AddTaskSheet(
         task: task,
-        onAdd: (title, description, priority, dueDate, pomodoros) {
+        isPremium: isPremium,
+        onAdd: (title, description, priority, dueDate, pomodoros, recurrenceType) {
           ref.read(tasksProvider.notifier).updateTask(
                 task.copyWith(
                   title: title,
@@ -45,6 +56,7 @@ class TasksPage extends ConsumerWidget {
                   priority: priority,
                   dueDate: dueDate,
                   estimatedPomodoros: pomodoros,
+                  recurrenceType: recurrenceType,
                 ),
               );
         },
@@ -59,6 +71,8 @@ class TasksPage extends ConsumerWidget {
     final accentColor = theme.colorScheme.primary;
     final tasksState = ref.watch(tasksProvider);
     final filteredTasks = tasksState.filteredTasks;
+    final isPremium = ref.watch(isPremiumProvider);
+    final viewMode = tasksState.viewMode;
 
     return Scaffold(
       body: SafeArea(
@@ -79,69 +93,86 @@ class TasksPage extends ConsumerWidget {
                           : AppColors.lightTextPrimary,
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => _showAddTaskDialog(context, ref),
-                    icon: SvgPicture.asset(
-                      'assets/icons/plus.svg',
-                      width: 24,
-                      height: 24,
-                      colorFilter: ColorFilter.mode(
-                        accentColor,
-                        BlendMode.srcIn,
+                  Row(
+                    children: [
+                      // View mode toggle (Premium feature)
+                      if (isPremium) ...[
+                        _ViewModeToggle(
+                          viewMode: viewMode,
+                          onChanged: (mode) =>
+                              ref.read(tasksProvider.notifier).setViewMode(mode),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      IconButton(
+                        onPressed: () => _showAddTaskDialog(context, ref),
+                        icon: SvgPicture.asset(
+                          'assets/icons/plus.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: ColorFilter.mode(
+                            accentColor,
+                            BlendMode.srcIn,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
 
               const SizedBox(height: 16),
 
-              // Filter chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _FilterChip(
-                      label: 'All (${tasksState.tasks.length})',
-                      isSelected: tasksState.filter == TaskFilter.all,
-                      onTap: () =>
-                          ref.read(tasksProvider.notifier).setFilter(TaskFilter.all),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Today (${tasksState.todayCount})',
-                      isSelected: tasksState.filter == TaskFilter.today,
-                      onTap: () =>
-                          ref.read(tasksProvider.notifier).setFilter(TaskFilter.today),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Active (${tasksState.activeCount})',
-                      isSelected: tasksState.filter == TaskFilter.active,
-                      onTap: () =>
-                          ref.read(tasksProvider.notifier).setFilter(TaskFilter.active),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Done (${tasksState.completedCount})',
-                      isSelected: tasksState.filter == TaskFilter.completed,
-                      onTap: () => ref
-                          .read(tasksProvider.notifier)
-                          .setFilter(TaskFilter.completed),
-                    ),
-                  ],
+              // Filter chips (only in list mode)
+              if (viewMode == TaskViewMode.list)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _FilterChip(
+                        label: 'All (${tasksState.parentTasks.length})',
+                        isSelected: tasksState.filter == TaskFilter.all,
+                        onTap: () =>
+                            ref.read(tasksProvider.notifier).setFilter(TaskFilter.all),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Today (${tasksState.todayCount})',
+                        isSelected: tasksState.filter == TaskFilter.today,
+                        onTap: () =>
+                            ref.read(tasksProvider.notifier).setFilter(TaskFilter.today),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Active (${tasksState.activeCount})',
+                        isSelected: tasksState.filter == TaskFilter.active,
+                        onTap: () =>
+                            ref.read(tasksProvider.notifier).setFilter(TaskFilter.active),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Done (${tasksState.completedCount})',
+                        isSelected: tasksState.filter == TaskFilter.completed,
+                        onTap: () => ref
+                            .read(tasksProvider.notifier)
+                            .setFilter(TaskFilter.completed),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
+              if (viewMode == TaskViewMode.list)
+                const SizedBox(height: 24),
 
-              // Task list or empty state
+              // Task list/kanban or empty state
               Expanded(
                 child: tasksState.isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : filteredTasks.isEmpty
-                        ? _buildEmptyState(context, ref, isDark, tasksState.filter)
-                        : _buildTaskList(context, ref, filteredTasks, isDark),
+                    : viewMode == TaskViewMode.kanban
+                        ? const KanbanView()
+                        : filteredTasks.isEmpty
+                            ? _buildEmptyState(context, ref, isDark, tasksState.filter)
+                            : _buildTaskList(context, ref, filteredTasks, isDark, isPremium),
               ),
             ],
           ),
@@ -226,13 +257,14 @@ class TasksPage extends ConsumerWidget {
   }
 
   Widget _buildTaskList(
-      BuildContext context, WidgetRef ref, List<Task> tasks, bool isDark) {
+      BuildContext context, WidgetRef ref, List<Task> tasks, bool isDark, bool isPremium) {
     return ListView.builder(
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
         return _TaskItem(
           task: task,
+          isPremium: isPremium,
           onToggle: () => ref.read(tasksProvider.notifier).toggleComplete(task.id),
           onEdit: () => _showEditTaskDialog(context, ref, task),
           onDelete: () => ref.read(tasksProvider.notifier).deleteTask(task.id),
@@ -294,8 +326,93 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _TaskItem extends StatelessWidget {
+/// Toggle between list and kanban view
+class _ViewModeToggle extends StatelessWidget {
+  final TaskViewMode viewMode;
+  final ValueChanged<TaskViewMode> onChanged;
+
+  const _ViewModeToggle({
+    required this.viewMode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ViewModeButton(
+            icon: Icons.list,
+            isSelected: viewMode == TaskViewMode.list,
+            onTap: () => onChanged(TaskViewMode.list),
+          ),
+          const SizedBox(width: 4),
+          _ViewModeButton(
+            icon: Icons.view_kanban,
+            isSelected: viewMode == TaskViewMode.kanban,
+            onTap: () => onChanged(TaskViewMode.kanban),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewModeButton extends StatelessWidget {
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ViewModeButton({
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isSelected
+              ? theme.colorScheme.primary
+              : (isDark
+                  ? AppColors.darkTextTertiary
+                  : AppColors.lightTextTertiary),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskItem extends ConsumerWidget {
   final Task task;
+  final bool isPremium;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -303,6 +420,7 @@ class _TaskItem extends StatelessWidget {
 
   const _TaskItem({
     required this.task,
+    required this.isPremium,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
@@ -321,10 +439,12 @@ class _TaskItem extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final priorityColor = _getPriorityColor(task.priority);
+    final subtasks = ref.watch(subtasksProvider(task.id));
+    final isExpanded = ref.watch(tasksProvider).expandedTaskId == task.id;
 
     return Dismissible(
       key: Key(task.id),
@@ -360,175 +480,247 @@ class _TaskItem extends StatelessWidget {
               color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
             ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Checkbox
-              GestureDetector(
-                onTap: onToggle,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: task.isCompleted
-                        ? theme.colorScheme.primary
-                        : Colors.transparent,
-                    border: Border.all(
-                      color: task.isCompleted
-                          ? theme.colorScheme.primary
-                          : priorityColor,
-                      width: 2,
-                    ),
-                  ),
-                  child: task.isCompleted
-                      ? const Icon(Icons.check, size: 16, color: Colors.white)
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Task content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+              Row(
+                children: [
+                  // Checkbox
+                  GestureDetector(
+                    onTap: onToggle,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         color: task.isCompleted
-                            ? (isDark
-                                ? AppColors.darkTextTertiary
-                                : AppColors.lightTextTertiary)
-                            : (isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.lightTextPrimary),
-                        decoration:
-                            task.isCompleted ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                    if (task.description != null && task.description!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          task.description!,
-                          style: AppTypography.bodySmall(
-                            isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.lightTextSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                            ? theme.colorScheme.primary
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: task.isCompleted
+                              ? theme.colorScheme.primary
+                              : priorityColor,
+                          width: 2,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    Row(
+                      child: task.isCompleted
+                          ? const Icon(Icons.check, size: 16, color: Colors.white)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Task content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Pomodoro counter
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SvgPicture.asset(
-                                'assets/icons/timer.svg',
-                                width: 12,
-                                height: 12,
-                                colorFilter: ColorFilter.mode(
-                                  theme.colorScheme.primary,
-                                  BlendMode.srcIn,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                task.title,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: task.isCompleted
+                                      ? (isDark
+                                          ? AppColors.darkTextTertiary
+                                          : AppColors.lightTextTertiary)
+                                      : (isDark
+                                          ? AppColors.darkTextPrimary
+                                          : AppColors.lightTextPrimary),
+                                  decoration:
+                                      task.isCompleted ? TextDecoration.lineThrough : null,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${task.completedPomodoros}/${task.estimatedPomodoros}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: theme.colorScheme.primary,
+                            ),
+                            // Recurring indicator
+                            if (task.isRecurring)
+                              RecurrenceBadge(type: task.recurrenceType),
+                          ],
+                        ),
+                        if (task.description != null && task.description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              task.description!,
+                              style: AppTypography.bodySmall(
+                                isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            // Pomodoro counter
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icons/timer.svg',
+                                    width: 12,
+                                    height: 12,
+                                    colorFilter: ColorFilter.mode(
+                                      theme.colorScheme.primary,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${task.completedPomodoros}/${task.estimatedPomodoros}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Subtasks indicator (Premium)
+                            if (subtasks.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => ref
+                                    .read(tasksProvider.notifier)
+                                    .toggleExpandedTask(task.id),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.darkBackground
+                                        : AppColors.lightBackground,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isExpanded
+                                            ? Icons.expand_less
+                                            : Icons.checklist,
+                                        size: 12,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : AppColors.lightTextSecondary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${subtasks.where((t) => t.isCompleted).length}/${subtasks.length}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark
+                                              ? AppColors.darkTextSecondary
+                                              : AppColors.lightTextSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
 
-                        // Due date
-                        if (task.dueDate != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: task.isOverdue
-                                  ? AppColors.error.withValues(alpha: 0.1)
-                                  : (isDark
-                                      ? AppColors.darkBackground
-                                      : AppColors.lightBackground),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icons/calendar.svg',
-                                  width: 12,
-                                  height: 12,
-                                  colorFilter: ColorFilter.mode(
-                                    task.isOverdue
-                                        ? AppColors.error
-                                        : (isDark
-                                            ? AppColors.darkTextSecondary
-                                            : AppColors.lightTextSecondary),
-                                    BlendMode.srcIn,
-                                  ),
+                            // Due date
+                            if (task.dueDate != null) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  DateFormat.MMMd().format(task.dueDate!),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: task.isOverdue
-                                        ? AppColors.error
-                                        : (isDark
-                                            ? AppColors.darkTextSecondary
-                                            : AppColors.lightTextSecondary),
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: task.isOverdue
+                                      ? AppColors.error.withValues(alpha: 0.1)
+                                      : (isDark
+                                          ? AppColors.darkBackground
+                                          : AppColors.lightBackground),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SvgPicture.asset(
+                                      'assets/icons/calendar.svg',
+                                      width: 12,
+                                      height: 12,
+                                      colorFilter: ColorFilter.mode(
+                                        task.isOverdue
+                                            ? AppColors.error
+                                            : (isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.lightTextSecondary),
+                                        BlendMode.srcIn,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat.MMMd().format(task.dueDate!),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: task.isOverdue
+                                            ? AppColors.error
+                                            : (isDark
+                                                ? AppColors.darkTextSecondary
+                                                : AppColors.lightTextSecondary),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              // Edit button
-              IconButton(
-                onPressed: onEdit,
-                icon: SvgPicture.asset(
-                  'assets/icons/edit.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter: ColorFilter.mode(
-                    isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.lightTextTertiary,
-                    BlendMode.srcIn,
+                  // Edit button
+                  IconButton(
+                    onPressed: onEdit,
+                    icon: SvgPicture.asset(
+                      'assets/icons/edit.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: ColorFilter.mode(
+                        isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.lightTextTertiary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Expanded subtasks section (Premium)
+              if (isExpanded && isPremium) ...[
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(left: 36),
+                  child: SubtasksList(
+                    parentTaskId: task.id,
+                    canAdd: !task.isCompleted,
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -540,16 +732,19 @@ class _TaskItem extends StatelessWidget {
 /// Add/Edit Task Sheet
 class _AddTaskSheet extends StatefulWidget {
   final Task? task;
+  final bool isPremium;
   final void Function(
     String title,
     String? description,
     TaskPriority priority,
     DateTime? dueDate,
     int pomodoros,
+    RecurrenceType recurrenceType,
   ) onAdd;
 
   const _AddTaskSheet({
     this.task,
+    required this.isPremium,
     required this.onAdd,
   });
 
@@ -563,6 +758,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
   late TaskPriority _priority;
   DateTime? _dueDate;
   late int _pomodoros;
+  late RecurrenceType _recurrenceType;
 
   @override
   void initState() {
@@ -573,6 +769,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
     _priority = widget.task?.priority ?? TaskPriority.medium;
     _dueDate = widget.task?.dueDate;
     _pomodoros = widget.task?.estimatedPomodoros ?? 1;
+    _recurrenceType = widget.task?.recurrenceType ?? RecurrenceType.none;
   }
 
   @override
@@ -856,6 +1053,15 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
             ),
             const SizedBox(height: 24),
 
+            // Recurrence selector (Premium)
+            if (widget.isPremium) ...[
+              RecurrenceSelector(
+                selectedType: _recurrenceType,
+                onChanged: (type) => setState(() => _recurrenceType = type),
+              ),
+              const SizedBox(height: 24),
+            ],
+
             // Add button
             SizedBox(
               width: double.infinity,
@@ -871,6 +1077,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
                           _priority,
                           _dueDate,
                           _pomodoros,
+                          _recurrenceType,
                         );
                         Navigator.pop(context);
                       },

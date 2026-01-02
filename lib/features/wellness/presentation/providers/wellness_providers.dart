@@ -173,7 +173,7 @@ class PersonalGoalsNotifier extends StateNotifier<List<PersonalGoal>> {
     state = _repository.getAllGoals();
   }
 
-  Future<void> addGoal({
+  Future<PersonalGoal> addGoal({
     required String title,
     String? description,
     required GoalType type,
@@ -193,6 +193,7 @@ class PersonalGoalsNotifier extends StateNotifier<List<PersonalGoal>> {
     );
     await _repository.addGoal(goal);
     _load();
+    return goal;
   }
 
   Future<void> updateGoal(PersonalGoal goal) async {

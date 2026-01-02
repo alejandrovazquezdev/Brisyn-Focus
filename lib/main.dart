@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +14,7 @@ import 'app/routes.dart';
 import 'app/theme/app_theme.dart';
 import 'core/services/firebase_options.dart';
 import 'core/services/purchase_service.dart';
+import 'core/services/desktop_auth_service.dart';
 import 'features/tasks/domain/models/task.dart';
 import 'features/activities/domain/models/activity_category.dart';
 import 'features/activities/domain/models/activity_session.dart';
@@ -36,10 +40,33 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Configure desktop auth service (avoids keychain issues on macOS)
+  if (!kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+    // Initialize our REST API based auth service
+    await DesktopAuthService.instance.initialize(sharedPreferences);
+  }
+
   // Initialize Hive and register adapters
   await Hive.initFlutter();
+  
+  // One-time migration: delete old tasks box that doesn't have new fields
+  // This can be removed after all users have migrated
+  const migrationKey = 'tasks_v2_migrated';
+  final hasMigrated = sharedPreferences.getBool(migrationKey) ?? false;
+  if (!hasMigrated) {
+    try {
+      await Hive.deleteBoxFromDisk('tasks');
+      await sharedPreferences.setBool(migrationKey, true);
+      print('Tasks migration: Old data cleared');
+    } catch (e) {
+      print('Tasks migration: $e');
+    }
+  }
+  
   Hive.registerAdapter(TaskAdapter());
   Hive.registerAdapter(TaskPriorityAdapter());
+  Hive.registerAdapter(TaskStatusAdapter());
+  Hive.registerAdapter(RecurrenceTypeAdapter());
   Hive.registerAdapter(ActivityCategoryAdapter());
   Hive.registerAdapter(ActivityIconAdapter());
   Hive.registerAdapter(ActivitySessionAdapter());
@@ -51,11 +78,19 @@ void main() async {
   Hive.registerAdapter(PersonalGoalAdapter());
   Hive.registerAdapter(GoalTypeAdapter());
 
-  // Initialize Purchase Service (RevenueCat)
+  // Initialize Purchase Service (RevenueCat for mobile, Stripe for desktop)
   // If user is logged in, pass their ID for cross-device sync
-  final currentUser = FirebaseAuth.instance.currentUser;
+  String? currentUserId;
+  if (!kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+    // Desktop: get user ID from DesktopAuthService
+    currentUserId = DesktopAuthService.instance.currentUserId;
+  } else {
+    // Mobile/Web: get user ID from Firebase Auth
+    currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  }
+  
   await PurchaseService.instance.initialize(
-    userId: currentUser?.uid,
+    userId: currentUserId,
   );
 
   runApp(

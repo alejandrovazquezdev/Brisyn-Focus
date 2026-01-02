@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../../../../app/theme/colors.dart';
-import '../../domain/models/activity_category.dart';
+import '../../../../app/theme/colors.dart';import '../../../wellness/presentation/providers/wellness_providers.dart';import '../../domain/models/activity_category.dart';
 import '../providers/activities_providers.dart';
 
 /// Sheet to log a new activity session
@@ -48,6 +47,7 @@ class _LogSessionSheetState extends ConsumerState<LogSessionSheet> {
         ? null
         : _notesController.text.trim();
 
+    // 1. Add session to activities
     ref
         .read(activitiesProvider.notifier)
         .addSession(
@@ -56,6 +56,27 @@ class _LogSessionSheetState extends ConsumerState<LogSessionSheet> {
           startTime: _sessionDate,
           notes: notes,
         );
+
+    // 2. Record focus time for streaks
+    ref.read(focusStreaksProvider.notifier).recordFocusTime(
+      focusMinutes: _duration,
+      sessionsCompleted: 1,
+      dailyGoalMinutes: 60,
+    );
+
+    // 3. Update linked goal if exists
+    final linkedGoalId = _selectedCategory!.linkedGoalId;
+    if (linkedGoalId != null && linkedGoalId.isNotEmpty) {
+      final goals = ref.read(personalGoalsProvider);
+      final goalIndex = goals.indexWhere((g) => g.id == linkedGoalId);
+      if (goalIndex != -1) {
+        final goal = goals[goalIndex];
+        final updatedGoal = goal.copyWith(
+          currentValue: goal.currentValue + _duration,
+        );
+        ref.read(personalGoalsProvider.notifier).updateGoal(updatedGoal);
+      }
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

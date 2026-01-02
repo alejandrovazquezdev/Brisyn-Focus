@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'desktop_auth_service.dart';
 
 /// Configuration for purchases
 class PurchaseConfig {
@@ -146,6 +150,17 @@ class PurchaseService {
     return Platform.isIOS || Platform.isAndroid;
   }
 
+  /// Update user ID after login (useful for desktop where auth happens after app launch)
+  Future<void> setUserId(String userId) async {
+    _userId = userId;
+    debugPrint('PurchaseService: User ID set to $userId');
+    
+    // Start listening to Firestore for subscription status
+    if (isDesktop || kIsWeb) {
+      await _startFirestoreListener(userId);
+    }
+  }
+
   /// Initialize the purchase service
   Future<void> initialize({String? userId}) async {
     if (_isInitialized) return;
@@ -242,11 +257,42 @@ class PurchaseService {
   }
 
   /// Check Firestore subscription status immediately
-  Future<void> _checkFirestoreSubscription(String oderId) async {
+  Future<void> _checkFirestoreSubscription(String userId) async {
     try {
+      // First, check the users collection (direct user document)
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final data = userDoc.data();
+        if (data != null) {
+          final isPremium = data['isPremium'] == true;
+          final status = data['subscriptionStatus'] as String?;
+          
+          if (isPremium || status == 'active' || status == 'trialing') {
+            _subscriptionInfo = SubscriptionInfo(
+              subId: userDoc.id,
+              userId: userId,
+              plan: data['productId'] as String? ?? 'pro_monthly',
+              status: status ?? 'active',
+              currentPeriodEnd: data['subscriptionEndDate'] != null
+                  ? (data['subscriptionEndDate'] as Timestamp).toDate()
+                  : DateTime.now().add(const Duration(days: 365)),
+              cancelAtPeriodEnd: false,
+            );
+            _updatePremiumStatus(true);
+            debugPrint('PurchaseService: Found premium status in users collection');
+            return;
+          }
+        }
+      }
+      
+      // Fallback: check subscriptions collection
       final snapshot = await FirebaseFirestore.instance
           .collection('subscriptions')
-          .where('userId', isEqualTo: oderId)
+          .where('userId', isEqualTo: userId)
           .where('status', whereIn: ['active', 'trialing'])
           .limit(1)
           .get();
@@ -258,12 +304,81 @@ class PurchaseService {
           doc.id,
         );
         _updatePremiumStatus(true);
+        debugPrint('PurchaseService: Found premium status in subscriptions collection');
       } else {
         _subscriptionInfo = null;
         _updatePremiumStatus(false);
+        debugPrint('PurchaseService: No premium status found');
       }
     } catch (e) {
       debugPrint('PurchaseService: Error checking Firestore subscription - $e');
+      // On desktop, try REST API as fallback when SDK auth fails
+      if (isDesktop) {
+        await _checkFirestoreViaRestApi(userId);
+      }
+    }
+  }
+
+  /// Check Firestore using REST API (for Desktop when SDK auth fails)
+  Future<void> _checkFirestoreViaRestApi(String userId) async {
+    try {
+      final idToken = DesktopAuthService.instance.currentIdToken;
+      if (idToken == null) {
+        debugPrint('PurchaseService: No idToken available for REST API');
+        return;
+      }
+
+      // Firestore REST API URL
+      const projectId = 'brisyn-focus';
+      final url = 'https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/users/$userId';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final fields = data['fields'] as Map<String, dynamic>?;
+        
+        if (fields != null) {
+          final isPremium = fields['isPremium']?['booleanValue'] == true;
+          final status = fields['subscriptionStatus']?['stringValue'] as String?;
+          
+          debugPrint('PurchaseService: REST API - isPremium: $isPremium, status: $status');
+          
+          if (isPremium || status == 'active' || status == 'trialing') {
+            // Parse subscriptionEndDate if present
+            DateTime? endDate;
+            final endDateValue = fields['subscriptionEndDate']?['timestampValue'] as String?;
+            if (endDateValue != null) {
+              endDate = DateTime.tryParse(endDateValue);
+            }
+            
+            _subscriptionInfo = SubscriptionInfo(
+              subId: userId,
+              userId: userId,
+              plan: fields['productId']?['stringValue'] as String? ?? 'pro_monthly',
+              status: status ?? 'active',
+              currentPeriodEnd: endDate ?? DateTime.now().add(const Duration(days: 365)),
+              cancelAtPeriodEnd: false,
+            );
+            _updatePremiumStatus(true);
+            debugPrint('PurchaseService: Found premium status via REST API');
+            return;
+          }
+        }
+      } else {
+        debugPrint('PurchaseService: REST API error - ${response.statusCode}: ${response.body}');
+      }
+      
+      _subscriptionInfo = null;
+      _updatePremiumStatus(false);
+    } catch (e) {
+      debugPrint('PurchaseService: REST API error - $e');
     }
   }
 

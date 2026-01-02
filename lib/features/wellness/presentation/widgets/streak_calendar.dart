@@ -154,22 +154,16 @@ class _StreakCalendarState extends ConsumerState<StreakCalendar> {
 
           const SizedBox(height: 12),
 
-          // Legend
+          // Legend - simplified to only 2 states
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _LegendItem(
                 color: theme.colorScheme.primary,
-                label: 'Goal Met',
+                label: 'Activity',
                 isDark: isDark,
               ),
-              const SizedBox(width: 16),
-              _LegendItem(
-                color: Colors.orange,
-                label: 'Partial',
-                isDark: isDark,
-              ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 24),
               _LegendItem(
                 color: isDark ? Colors.white24 : Colors.black12,
                 label: 'No Activity',
@@ -225,16 +219,10 @@ class _CalendarDay extends StatelessWidget {
 
     if (isFuture) {
       textColor = isDark ? Colors.white24 : Colors.black26;
-    } else if (streak != null) {
-      if (streak!.goalMet) {
-        backgroundColor = theme.colorScheme.primary;
-        textColor = Colors.white;
-      } else if (streak!.focusMinutes > 0) {
-        backgroundColor = Colors.orange;
-        textColor = Colors.white;
-      } else {
-        textColor = isDark ? Colors.white70 : Colors.black87;
-      }
+    } else if (streak != null && streak!.sessionsCompleted > 0) {
+      // Any session = Activity (blue)
+      backgroundColor = theme.colorScheme.primary;
+      textColor = Colors.white;
     } else {
       textColor = isDark ? Colors.white70 : Colors.black87;
     }

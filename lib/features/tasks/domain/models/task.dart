@@ -13,6 +13,30 @@ enum TaskPriority {
   high,
 }
 
+/// Task status for Kanban view
+@HiveType(typeId: 16)
+enum TaskStatus {
+  @HiveField(0)
+  todo,
+  @HiveField(1)
+  inProgress,
+  @HiveField(2)
+  done,
+}
+
+/// Recurrence type for recurring tasks
+@HiveType(typeId: 17)
+enum RecurrenceType {
+  @HiveField(0)
+  none,
+  @HiveField(1)
+  daily,
+  @HiveField(2)
+  weekly,
+  @HiveField(3)
+  monthly,
+}
+
 /// Task model
 @HiveType(typeId: 0)
 class Task {
@@ -52,6 +76,28 @@ class Task {
   @HiveField(11)
   int sortOrder;
 
+  // New fields for premium features
+  
+  /// Task status for Kanban (todo, inProgress, done)
+  @HiveField(12)
+  TaskStatus status;
+
+  /// Parent task ID for subtasks
+  @HiveField(13)
+  String? parentTaskId;
+
+  /// Recurrence type (none, daily, weekly, monthly)
+  @HiveField(14)
+  RecurrenceType recurrenceType;
+
+  /// Last date when recurring task was generated
+  @HiveField(15)
+  DateTime? lastRecurrenceDate;
+
+  /// Original recurring task ID (for tasks created by recurrence)
+  @HiveField(16)
+  String? recurringSourceId;
+
   Task({
     required this.id,
     required this.title,
@@ -65,8 +111,22 @@ class Task {
     this.projectId,
     List<String>? tags,
     this.sortOrder = 0,
+    this.status = TaskStatus.todo,
+    this.parentTaskId,
+    this.recurrenceType = RecurrenceType.none,
+    this.lastRecurrenceDate,
+    this.recurringSourceId,
   })  : createdAt = createdAt ?? DateTime.now(),
         tags = tags ?? [];
+
+  /// Check if this is a subtask
+  bool get isSubtask => parentTaskId != null;
+
+  /// Check if this is a recurring task
+  bool get isRecurring => recurrenceType != RecurrenceType.none;
+
+  /// Check if this task was created from a recurring task
+  bool get isFromRecurrence => recurringSourceId != null;
 
   /// Create a copy with updated fields
   Task copyWith({
@@ -82,6 +142,11 @@ class Task {
     String? projectId,
     List<String>? tags,
     int? sortOrder,
+    TaskStatus? status,
+    String? parentTaskId,
+    RecurrenceType? recurrenceType,
+    DateTime? lastRecurrenceDate,
+    String? recurringSourceId,
   }) {
     return Task(
       id: id ?? this.id,
@@ -96,6 +161,11 @@ class Task {
       projectId: projectId ?? this.projectId,
       tags: tags ?? this.tags,
       sortOrder: sortOrder ?? this.sortOrder,
+      status: status ?? this.status,
+      parentTaskId: parentTaskId ?? this.parentTaskId,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      lastRecurrenceDate: lastRecurrenceDate ?? this.lastRecurrenceDate,
+      recurringSourceId: recurringSourceId ?? this.recurringSourceId,
     );
   }
 
@@ -129,6 +199,50 @@ class Task {
         return 'Medium';
       case TaskPriority.low:
         return 'Low';
+    }
+  }
+
+  /// Status name for UI
+  String get statusName {
+    switch (status) {
+      case TaskStatus.todo:
+        return 'To Do';
+      case TaskStatus.inProgress:
+        return 'In Progress';
+      case TaskStatus.done:
+        return 'Done';
+    }
+  }
+
+  /// Recurrence name for UI
+  String get recurrenceName {
+    switch (recurrenceType) {
+      case RecurrenceType.none:
+        return 'None';
+      case RecurrenceType.daily:
+        return 'Daily';
+      case RecurrenceType.weekly:
+        return 'Weekly';
+      case RecurrenceType.monthly:
+        return 'Monthly';
+    }
+  }
+
+  /// Calculate next due date for recurring task
+  DateTime? getNextRecurrenceDate() {
+    if (!isRecurring || dueDate == null) return null;
+    
+    final baseDate = lastRecurrenceDate ?? dueDate!;
+    
+    switch (recurrenceType) {
+      case RecurrenceType.daily:
+        return baseDate.add(const Duration(days: 1));
+      case RecurrenceType.weekly:
+        return baseDate.add(const Duration(days: 7));
+      case RecurrenceType.monthly:
+        return DateTime(baseDate.year, baseDate.month + 1, baseDate.day);
+      case RecurrenceType.none:
+        return null;
     }
   }
 

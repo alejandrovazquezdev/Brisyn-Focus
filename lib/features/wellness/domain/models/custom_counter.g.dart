@@ -61,50 +61,6 @@ class CustomCounterAdapter extends TypeAdapter<CustomCounter> {
           typeId == other.typeId;
 }
 
-class CounterTypeAdapter extends TypeAdapter<CounterType> {
-  @override
-  final int typeId = 12;
-
-  @override
-  CounterType read(BinaryReader reader) {
-    switch (reader.readByte()) {
-      case 0:
-        return CounterType.daily;
-      case 1:
-        return CounterType.weekly;
-      case 2:
-        return CounterType.cumulative;
-      default:
-        return CounterType.daily;
-    }
-  }
-
-  @override
-  void write(BinaryWriter writer, CounterType obj) {
-    switch (obj) {
-      case CounterType.daily:
-        writer.writeByte(0);
-        break;
-      case CounterType.weekly:
-        writer.writeByte(1);
-        break;
-      case CounterType.cumulative:
-        writer.writeByte(2);
-        break;
-    }
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CounterTypeAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}
-
 class CounterEntryAdapter extends TypeAdapter<CounterEntry> {
   @override
   final int typeId = 13;
@@ -147,6 +103,50 @@ class CounterEntryAdapter extends TypeAdapter<CounterEntry> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CounterEntryAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class CounterTypeAdapter extends TypeAdapter<CounterType> {
+  @override
+  final int typeId = 12;
+
+  @override
+  CounterType read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return CounterType.daily;
+      case 1:
+        return CounterType.weekly;
+      case 2:
+        return CounterType.cumulative;
+      default:
+        return CounterType.daily;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, CounterType obj) {
+    switch (obj) {
+      case CounterType.daily:
+        writer.writeByte(0);
+        break;
+      case CounterType.weekly:
+        writer.writeByte(1);
+        break;
+      case CounterType.cumulative:
+        writer.writeByte(2);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CounterTypeAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

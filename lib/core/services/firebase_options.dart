@@ -30,7 +30,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCCm9IhFS8M-HYB7ei1yHXPEdAdW0-mR8',
+    apiKey: 'AIzaSyCCn9IhFS5M8-HYB7eilyhXPEdAdW0-mR8',
     appId: '1:150222395140:web:340b908471758b538ea251',
     messagingSenderId: '150222395140',
     projectId: 'brisyn-focus',

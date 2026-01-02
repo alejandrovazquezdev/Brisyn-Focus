@@ -302,8 +302,8 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? AppColors.darkCardBackground
-                              : AppColors.lightCardBackground,
+                              ? AppColors.darkSurface
+                              : AppColors.lightSurface,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark

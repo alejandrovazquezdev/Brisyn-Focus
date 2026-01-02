@@ -1,8 +1,19 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/desktop_auth_service.dart';
+import '../../../../core/services/purchase_service.dart';
 import '../../domain/models/app_user.dart';
 import '../../domain/services/auth_service.dart';
+
+/// Check if we're on desktop platform
+bool get _isDesktop {
+  if (kIsWeb) return false;
+  return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+}
 
 /// Auth service provider
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -15,8 +26,15 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return authService.authStateChanges;
 });
 
-/// Current app user provider
+/// Current app user provider - works on all platforms including desktop
 final currentUserProvider = Provider<AppUser?>((ref) {
+  // On desktop, use DesktopAuthService
+  if (_isDesktop) {
+    final authState = ref.watch(authNotifierProvider);
+    return authState.user;
+  }
+  
+  // On mobile/web, use Firebase stream
   final authState = ref.watch(authStateProvider);
   return authState.whenOrNull(
     data: (user) {
@@ -32,14 +50,27 @@ final currentUserProvider = Provider<AppUser?>((ref) {
   );
 });
 
-/// Is user logged in provider
+/// Is user logged in provider - works on all platforms including desktop
 final isLoggedInProvider = Provider<bool>((ref) {
+  // On desktop, use DesktopAuthService
+  if (_isDesktop) {
+    final authState = ref.watch(authNotifierProvider);
+    return authState.status == AuthStatus.authenticated;
+  }
+  
+  // On mobile/web, use Firebase stream
   final authState = ref.watch(authStateProvider);
   return authState.whenOrNull(data: (user) => user != null) ?? false;
 });
 
-/// Is email verified provider
+/// Is email verified provider - works on all platforms including desktop
 final isEmailVerifiedProvider = Provider<bool>((ref) {
+  // On desktop, use DesktopAuthService
+  if (_isDesktop) {
+    return DesktopAuthService.instance.isEmailVerified;
+  }
+  
+  // On mobile/web, use Firebase stream
   final authState = ref.watch(authStateProvider);
   return authState.whenOrNull(
         data: (user) => user?.emailVerified ?? false,
@@ -102,6 +133,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String password,
   }) async {
+    debugPrint('AuthNotifier: Starting sign in...');
     state = state.copyWith(status: AuthStatus.loading, error: null);
 
     final result = await _authService.signInWithEmail(
@@ -109,19 +141,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
       password: password,
     );
 
+    debugPrint('AuthNotifier: Sign in result - success: ${result.success}, needsVerification: ${result.needsEmailVerification}');
+
     if (result.success) {
       if (result.needsEmailVerification) {
+        debugPrint('AuthNotifier: Setting status to needsEmailVerification');
         state = state.copyWith(
           status: AuthStatus.needsEmailVerification,
           user: result.user,
         );
       } else {
+        debugPrint('AuthNotifier: Setting status to authenticated');
+        
+        // Update PurchaseService with user ID for subscription tracking
+        if (result.user != null) {
+          await PurchaseService.instance.setUserId(result.user!.uid);
+        }
+        
         state = state.copyWith(
           status: AuthStatus.authenticated,
           user: result.user,
         );
+        debugPrint('AuthNotifier: New state status: ${state.status}');
       }
     } else {
+      debugPrint('AuthNotifier: Sign in failed - ${result.error}');
       state = state.copyWith(
         status: AuthStatus.error,
         error: result.error,
@@ -179,9 +223,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> checkEmailVerified() async {
     final isVerified = await _authService.checkEmailVerified();
     if (isVerified) {
+      // Update PurchaseService with user ID for subscription tracking
+      final user = _authService.currentAppUser;
+      if (user != null) {
+        await PurchaseService.instance.setUserId(user.uid);
+      }
+      
       state = state.copyWith(
         status: AuthStatus.authenticated,
-        user: _authService.currentAppUser,
+        user: user,
       );
     }
     return isVerified;
@@ -190,6 +240,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Sign out
   Future<void> signOut() async {
     await _authService.signOut();
+    await PurchaseService.instance.logout();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/colors.dart';
+import '../../../activities/domain/models/activity_category.dart';
+import '../../../activities/presentation/providers/activities_providers.dart';
 import '../../domain/models/personal_goal.dart';
 import '../providers/wellness_providers.dart';
 
@@ -21,6 +23,7 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
   Color _selectedColor = Colors.green;
   GoalType _selectedType = GoalType.daily;
   bool _showPresets = true;
+  bool _createLinkedCategory = false;
 
   final List<IconData> _availableIcons = [
     Icons.flag,
@@ -72,7 +75,7 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
     });
   }
 
-  void _save() {
+  void _save() async {
     final title = _titleController.text.trim();
 
     if (title.isEmpty) {
@@ -82,7 +85,8 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
       return;
     }
 
-    ref.read(personalGoalsProvider.notifier).addGoal(
+    // Add the goal and get it back
+    final newGoal = await ref.read(personalGoalsProvider.notifier).addGoal(
           title: title,
           description: _descriptionController.text.trim(),
           type: _selectedType,
@@ -90,7 +94,41 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
           color: _selectedColor,
         );
 
+    // If user wants to create a linked category (only for milestone goals)
+    if (_createLinkedCategory && _selectedType == GoalType.milestone) {
+      // Create a new category with same name
+      final category = await ref.read(activitiesProvider.notifier).addCategory(
+        name: title,
+        icon: ActivityIcon.hobby,
+        colorHex: _selectedColor.value.toRadixString(16).substring(2),
+        weeklyGoal: 3,
+      );
+      
+      // Link the category to the goal
+      final updatedCategory = category.copyWith(linkedGoalId: newGoal.id);
+      ref.read(activitiesProvider.notifier).updateCategory(updatedCategory);
+    }
+
     Navigator.of(context).pop();
+  }
+
+  Widget _buildLinkCategorySection(ThemeData theme, bool isDark) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Also create Category',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Switch(
+          value: _createLinkedCategory,
+          onChanged: (value) => setState(() => _createLinkedCategory = value),
+        ),
+      ],
+    );
   }
 
   @override
@@ -238,7 +276,14 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Link to Category (only for milestone goals)
+            if (_selectedType == GoalType.milestone)
+              _buildLinkCategorySection(theme, isDark),
+            
+            if (_selectedType == GoalType.milestone)
+              const SizedBox(height: 16),
 
             // Icon selector
             Text(

@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -99,9 +99,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     // Listen for auth state changes
     ref.listen<AuthState>(authNotifierProvider, (previous, next) {
+      debugPrint('LoginPage: Auth state changed from ${previous?.status} to ${next.status}');
       if (next.status == AuthStatus.authenticated) {
+        debugPrint('LoginPage: Navigating to timer...');
         context.go(AppRoutes.timer);
       } else if (next.status == AuthStatus.needsEmailVerification) {
+        debugPrint('LoginPage: Navigating to verify email...');
         context.go(AppRoutes.verifyEmail);
       } else if (next.status == AuthStatus.error && next.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -296,8 +299,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? AppColors.darkCardBackground
-                              : AppColors.lightCardBackground,
+                              ? AppColors.darkSurface
+                              : AppColors.lightSurface,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark

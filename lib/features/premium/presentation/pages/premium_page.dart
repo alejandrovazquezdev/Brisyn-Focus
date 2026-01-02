@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,8 +10,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/routes.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../../core/services/desktop_auth_service.dart';
 import '../../../../core/services/purchase_service.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+
+/// Check if we're on desktop platform
+bool get _isDesktop {
+  if (kIsWeb) return false;
+  return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+}
 
 enum SubscriptionPlan { monthly, yearly }
 
@@ -34,9 +43,16 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
       _selectedPlan == SubscriptionPlan.yearly ? '/year' : '/month';
 
   Future<void> _subscribe() async {
-    // Check if user is logged in
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    // Check if user is logged in - use DesktopAuthService on desktop
+    bool isUserLoggedIn;
+    if (_isDesktop) {
+      isUserLoggedIn = DesktopAuthService.instance.isLoggedIn;
+    } else {
+      final user = FirebaseAuth.instance.currentUser;
+      isUserLoggedIn = user != null;
+    }
+    
+    if (!isUserLoggedIn) {
       // Show login required dialog
       await _showLoginRequiredDialog();
       return;
@@ -194,57 +210,13 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
     }
   }
 
-  // Developer mode - enables all premium features for testing
-  Future<void> _enableDevMode() async {
-    if (!kDebugMode) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.developer_mode, color: AppColors.warning),
-            SizedBox(width: 12),
-            Text('Developer Mode'),
-          ],
-        ),
-        content: const Text(
-          'This will enable all premium features for testing purposes. This only works in debug mode.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enable'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await PurchaseService.instance.enableDevMode();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Developer mode enabled! All premium features unlocked.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.success,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final accentColor = theme.colorScheme.primary;
     final isLoggedIn = ref.watch(isLoggedInProvider);
+    final isPremium = PurchaseService.instance.isPremium;
 
     return Scaffold(
       appBar: AppBar(
@@ -261,15 +233,7 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
             ),
           ),
         ),
-        actions: [
-          // Developer mode button (only in debug)
-          if (kDebugMode)
-            IconButton(
-              onPressed: _enableDevMode,
-              icon: const Icon(Icons.developer_mode),
-              tooltip: 'Developer Mode',
-            ),
-        ],
+        actions: const [],
       ),
       body: Column(
         children: [
@@ -381,97 +345,157 @@ class _PremiumPageState extends ConsumerState<PremiumPage> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Plan Selection Cards
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PlanCard(
-                          title: 'Monthly',
-                          price: '\$1.99',
-                          period: '/month',
-                          isSelected: _selectedPlan == SubscriptionPlan.monthly,
-                          onTap: () {
-                            setState(
-                              () => _selectedPlan = SubscriptionPlan.monthly,
-                            );
-                          },
+                  // Show different content based on Premium status
+                  if (isPremium) ...[
+                    // Already Premium - show status
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            accentColor.withValues(alpha: 0.15),
+                            accentColor.withValues(alpha: 0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: accentColor.withValues(alpha: 0.3),
+                          width: 1.5,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _PlanCard(
-                          title: 'Yearly',
-                          price: '\$9.99',
-                          period: '/year',
-                          isSelected: _selectedPlan == SubscriptionPlan.yearly,
-                          savings: 'Save 58%',
-                          onTap: () {
-                            setState(
-                              () => _selectedPlan = SubscriptionPlan.yearly,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  TextButton(
-                    onPressed: _isLoading ? null : _restorePurchases,
-                    child: const Text('Restore Purchases'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom Subscribe Button
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: _isLoading ? null : _subscribe,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(
-                              isLoggedIn
-                                  ? 'Subscribe $_planName for $_planPrice$_planPeriod'
-                                  : 'Sign in to Subscribe',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
                             ),
+                            child: Icon(
+                              Icons.check_circle,
+                              color: accentColor,
+                              size: 32,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'You\'re a Pro!',
+                            style: AppTypography.titleLarge(
+                              isDark
+                                  ? AppColors.darkTextPrimary
+                                  : AppColors.lightTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Thank you for supporting Brisyn Focus. Enjoy all premium features!',
+                            style: AppTypography.bodyMedium(
+                              isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Cancel anytime. Subscriptions automatically renew unless cancelled.',
-                    style: AppTypography.bodySmall(
-                      isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.lightTextTertiary,
+                  ] else ...[
+                    // Not Premium - show plan selection
+                    // Plan Selection Cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PlanCard(
+                            title: 'Monthly',
+                            price: '\$1.99',
+                            period: '/month',
+                            isSelected: _selectedPlan == SubscriptionPlan.monthly,
+                            onTap: () {
+                              setState(
+                                () => _selectedPlan = SubscriptionPlan.monthly,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _PlanCard(
+                            title: 'Yearly',
+                            price: '\$9.99',
+                            period: '/year',
+                            isSelected: _selectedPlan == SubscriptionPlan.yearly,
+                            savings: 'Save 58%',
+                            onTap: () {
+                              setState(
+                                () => _selectedPlan = SubscriptionPlan.yearly,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+
+                    const SizedBox(height: 16),
+
+                    TextButton(
+                      onPressed: _isLoading ? null : _restorePurchases,
+                      child: const Text('Restore Purchases'),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
+
+          // Bottom Subscribe Button - only show if not premium
+          if (!isPremium)
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton(
+                        onPressed: _isLoading ? null : _subscribe,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                isLoggedIn
+                                    ? 'Subscribe $_planName for $_planPrice$_planPeriod'
+                                    : 'Sign in to Subscribe',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Cancel anytime. Subscriptions automatically renew unless cancelled.',
+                      style: AppTypography.bodySmall(
+                        isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.lightTextTertiary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

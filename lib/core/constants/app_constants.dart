@@ -34,7 +34,7 @@ class AppConstants {
   static const int maxTimerDuration = 120;
 
   // Timer presets (in minutes)
-  static const List<int> timerPresets = [15, 25, 50, 90];
+  static const List<int> timerPresets = [1, 15, 25, 50, 90];
 
   // ============================================
   // GAMIFICATION
@@ -182,9 +182,9 @@ class AppConstants {
   // EXTERNAL LINKS
   // ============================================
 
-  static const String websiteUrl = 'https://brisyn.app';
-  static const String privacyPolicyUrl = 'https://brisyn.app/privacy';
-  static const String termsOfServiceUrl = 'https://brisyn.app/terms';
+  static const String websiteUrl = 'https://brisyn.vazquezalejandro.digital';
+  static const String privacyPolicyUrl = 'https://brisyn.vazquezalejandro.digital/privacy.html';
+  static const String termsOfServiceUrl = 'https://brisyn.vazquezalejandro.digital/terms.html';
   static const String supportEmail = 'support@brisyn.app';
   static const String playStoreUrl =
       'https://play.google.com/store/apps/details?id=app.brisyn.focus';

@@ -308,6 +308,9 @@ class _CountersTab extends ConsumerWidget {
                     child: CounterCard(
                       counter: counter,
                       isDark: isDark,
+                      onDelete: () {
+                        ref.read(customCountersProvider.notifier).deleteCounter(counter.id);
+                      },
                     ),
                   )),
             ],
@@ -430,7 +433,13 @@ class _GoalsTab extends ConsumerWidget {
                     .where((g) => g.type == GoalType.daily)
                     .map((goal) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: GoalCard(goal: goal, isDark: isDark),
+                          child: GoalCard(
+                            goal: goal,
+                            isDark: isDark,
+                            onDelete: () {
+                              ref.read(personalGoalsProvider.notifier).deleteGoal(goal.id);
+                            },
+                          ),
                         )),
                 const SizedBox(height: 16),
               ],
@@ -448,7 +457,13 @@ class _GoalsTab extends ConsumerWidget {
                     .where((g) => g.type != GoalType.daily)
                     .map((goal) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: GoalCard(goal: goal, isDark: isDark),
+                          child: GoalCard(
+                            goal: goal,
+                            isDark: isDark,
+                            onDelete: () {
+                              ref.read(personalGoalsProvider.notifier).deleteGoal(goal.id);
+                            },
+                          ),
                         )),
               ],
             ],

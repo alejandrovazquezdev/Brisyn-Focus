@@ -33,6 +33,7 @@ class TimerState {
   final bool autoStartFocus;
   final int dailyFocusMinutes;
   final int dailySessionsCompleted;
+  final String? selectedCategoryId; // null means "Just Focus"
 
   const TimerState({
     this.phase = TimerPhase.focus,
@@ -48,6 +49,7 @@ class TimerState {
     this.autoStartFocus = false,
     this.dailyFocusMinutes = 0,
     this.dailySessionsCompleted = 0,
+    this.selectedCategoryId,
   });
 
   TimerState copyWith({
@@ -64,6 +66,8 @@ class TimerState {
     bool? autoStartFocus,
     int? dailyFocusMinutes,
     int? dailySessionsCompleted,
+    String? selectedCategoryId,
+    bool clearCategory = false,
   }) {
     return TimerState(
       phase: phase ?? this.phase,
@@ -79,6 +83,7 @@ class TimerState {
       autoStartFocus: autoStartFocus ?? this.autoStartFocus,
       dailyFocusMinutes: dailyFocusMinutes ?? this.dailyFocusMinutes,
       dailySessionsCompleted: dailySessionsCompleted ?? this.dailySessionsCompleted,
+      selectedCategoryId: clearCategory ? null : (selectedCategoryId ?? this.selectedCategoryId),
     );
   }
 
@@ -116,6 +121,9 @@ class TimerState {
 class TimerNotifier extends StateNotifier<TimerState> {
   Timer? _timer;
   final SharedPreferences _prefs;
+  
+  /// Callback when a focus session is completed
+  void Function(int durationMinutes, String? categoryId)? onFocusSessionComplete;
 
   TimerNotifier(this._prefs) : super(const TimerState()) {
     _loadSettings();
@@ -220,12 +228,18 @@ class TimerNotifier extends StateNotifier<TimerState> {
     _timer?.cancel();
     _timer = null;
 
-    // If focus session completed, update stats
+    // If focus session completed, update stats and notify listeners
     if (state.phase == TimerPhase.focus) {
+      final durationMinutes = state.focusDuration;
+      final categoryId = state.selectedCategoryId;
+      
       state = state.copyWith(
-        dailyFocusMinutes: state.dailyFocusMinutes + state.focusDuration,
+        dailyFocusMinutes: state.dailyFocusMinutes + durationMinutes,
         dailySessionsCompleted: state.dailySessionsCompleted + 1,
       );
+      
+      // Notify listeners about completed focus session
+      onFocusSessionComplete?.call(durationMinutes, categoryId);
     }
 
     _moveToNextPhase();
@@ -370,6 +384,14 @@ class TimerNotifier extends StateNotifier<TimerState> {
       totalSeconds: minutes * 60,
     );
     _saveSettings();
+  }
+
+  /// Select a category for the focus session (null = Just Focus)
+  void selectCategory(String? categoryId) {
+    state = state.copyWith(
+      selectedCategoryId: categoryId,
+      clearCategory: categoryId == null,
+    );
   }
 
   @override

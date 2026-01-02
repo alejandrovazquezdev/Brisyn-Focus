@@ -4,6 +4,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../domain/models/activity_category.dart';
+import '../../../wellness/domain/models/personal_goal.dart';
+import '../../../wellness/presentation/providers/wellness_providers.dart';
 import '../providers/activities_providers.dart';
 
 /// Parse color hex string (6 chars like 'FF6B6B') to Color
@@ -29,6 +31,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
   late ActivityIcon _selectedIcon;
   late String _selectedColor;
   late int _weeklyGoal;
+  bool _createLinkedGoal = false;
 
   // Colors stored as 6-char hex (without 0xFF prefix, matching the model format)
   final List<String> _colorOptions = [
@@ -52,6 +55,8 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
     _selectedIcon = edit?.icon ?? ActivityIcon.hobby;
     _selectedColor = edit?.colorHex ?? _colorOptions[0];
     _weeklyGoal = edit?.weeklyGoal ?? 3;
+    // If editing and has linked goal, keep it linked
+    _createLinkedGoal = edit?.linkedGoalId != null && edit!.linkedGoalId!.isNotEmpty;
   }
 
   @override
@@ -60,7 +65,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
     super.dispose();
   }
 
-  void _saveCategory() {
+  void _saveCategory() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,6 +75,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
     }
 
     if (widget.editCategory != null) {
+      // Editing existing category - keep existing linkedGoalId
       final category = ActivityCategory(
         id: widget.editCategory!.id,
         name: name,
@@ -77,18 +83,77 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
         colorHex: _selectedColor,
         weeklyGoal: _weeklyGoal,
         sortOrder: widget.editCategory!.sortOrder,
+        linkedGoalId: widget.editCategory!.linkedGoalId,
       );
       ref.read(activitiesProvider.notifier).updateCategory(category);
       Navigator.of(context).pop(category);
     } else {
-      ref.read(activitiesProvider.notifier).addCategory(
+      // Creating new category
+      final category = await ref.read(activitiesProvider.notifier).addCategory(
         name: name,
         icon: _selectedIcon,
         colorHex: _selectedColor,
         weeklyGoal: _weeklyGoal,
       );
+      
+      // If user wants to create a linked goal
+      if (_createLinkedGoal) {
+        // Create a milestone goal with same name
+        final newGoal = await ref.read(personalGoalsProvider.notifier).addGoal(
+          title: name,
+          description: 'Focus time goal for $name',
+          type: GoalType.milestone,
+          icon: Icons.timer,
+          color: _parseColor(_selectedColor),
+          targetValue: 60 * 10, // Default 10 hours (600 minutes)
+        );
+        
+        // Link the category to the newly created goal
+        final updatedCategory = category.copyWith(linkedGoalId: newGoal.id);
+        ref.read(activitiesProvider.notifier).updateCategory(updatedCategory);
+      }
+      
       Navigator.of(context).pop();
     }
+  }
+
+  Widget _buildLinkedGoalSection(ThemeData theme, bool isDark) {
+    // Only show for new categories, not editing
+    if (widget.editCategory != null) {
+      // Show linked status if editing and has link
+      if (widget.editCategory!.linkedGoalId != null) {
+        return Row(
+          children: [
+            Icon(Icons.link, size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Linked to a Goal',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        );
+      }
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Also create Goal',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Switch(
+          value: _createLinkedGoal,
+          onChanged: (value) => setState(() => _createLinkedGoal = value),
+        ),
+      ],
+    );
   }
 
   @override
@@ -224,6 +289,10 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                   ),
                   const SizedBox(height: 24),
 
+                  // Linked Goal
+                  _buildLinkedGoalSection(theme, isDark),
+                  const SizedBox(height: 24),
+
                   // Color picker
                   Text(
                     'Color',
@@ -231,41 +300,32 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                    spacing: 10,
+                    runSpacing: 10,
                     children: _colorOptions.map((colorHex) {
                       final isSelected = _selectedColor == colorHex;
                       return GestureDetector(
                         onTap: () => setState(() => _selectedColor = colorHex),
                         child: Container(
-                          width: 44,
-                          height: 44,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: _parseColor(colorHex),
                             shape: BoxShape.circle,
                             border: isSelected
-                                ? Border.all(color: Colors.white, width: 3)
-                                : null,
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: _parseColor(colorHex).withValues(alpha: 0.5),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ]
+                                ? Border.all(color: Colors.white, width: 2)
                                 : null,
                           ),
                           child: isSelected
-                              ? const Icon(Icons.check, color: Colors.white, size: 20)
+                              ? const Icon(Icons.check, color: Colors.white, size: 16)
                               : null,
                         ),
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   // Icon picker
                   Text(
@@ -274,56 +334,49 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 280,
-                    child: GridView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 6,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                      ),
-                      itemCount: ActivityIcon.values.length,
-                      itemBuilder: (context, index) {
-                        final icon = ActivityIcon.values[index];
-                        final isSelected = _selectedIcon == icon;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedIcon = icon),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? _parseColor(_selectedColor).withValues(alpha: 0.2)
-                                  : isDark
-                                      ? Colors.white.withValues(alpha: 0.05)
-                                      : Colors.black.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: isSelected
-                                  ? Border.all(
-                                      color: _parseColor(_selectedColor),
-                                      width: 2,
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                getIconAsset(icon),
-                                width: 24,
-                                height: 24,
-                                colorFilter: ColorFilter.mode(
-                                  isSelected
-                                      ? _parseColor(_selectedColor)
-                                      : isDark
-                                          ? Colors.white54
-                                          : Colors.black54,
-                                  BlendMode.srcIn,
-                                ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ActivityIcon.values.map((icon) {
+                      final isSelected = _selectedIcon == icon;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedIcon = icon),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? _parseColor(_selectedColor).withValues(alpha: 0.2)
+                                : isDark
+                                    ? Colors.white.withValues(alpha: 0.05)
+                                    : Colors.black.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: isSelected
+                                ? Border.all(
+                                    color: _parseColor(_selectedColor),
+                                    width: 2,
+                                  )
+                                : null,
+                          ),
+                          child: Center(
+                            child: SvgPicture.asset(
+                              getIconAsset(icon),
+                              width: 22,
+                              height: 22,
+                              colorFilter: ColorFilter.mode(
+                                isSelected
+                                    ? _parseColor(_selectedColor)
+                                    : isDark
+                                        ? Colors.white54
+                                        : Colors.black54,
+                                BlendMode.srcIn,
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),

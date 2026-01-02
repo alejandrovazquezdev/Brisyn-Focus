@@ -65,6 +65,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: AppRoutes.wellness,
+            name: 'wellness',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: WellnessPage(),
+            ),
+          ),
+          GoRoute(
             path: AppRoutes.settings,
             name: 'settings',
             pageBuilder: (context, state) => const NoTransitionPage(
@@ -96,13 +103,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.premium,
         name: 'premium',
         builder: (context, state) => const PremiumPage(),
-      ),
-
-      // Wellness route
-      GoRoute(
-        path: AppRoutes.wellness,
-        name: 'wellness',
-        builder: (context, state) => const WellnessPage(),
       ),
     ],
 

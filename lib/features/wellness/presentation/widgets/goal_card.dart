@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/colors.dart';
+import '../../../activities/presentation/providers/activities_providers.dart';
 import '../../domain/models/personal_goal.dart';
 import '../providers/wellness_providers.dart';
 
@@ -9,19 +10,27 @@ import '../providers/wellness_providers.dart';
 class GoalCard extends ConsumerWidget {
   final PersonalGoal goal;
   final bool isDark;
+  final VoidCallback? onDelete;
 
   const GoalCard({
     super.key,
     required this.goal,
     required this.isDark,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isCompletedToday = goal.isCompletedToday;
+    
+    // Find linked categories
+    final categories = ref.watch(activitiesProvider).categories;
+    final linkedCategories = categories.where((c) => c.linkedGoalId == goal.id).toList();
 
-    return Container(
+    return GestureDetector(
+      onLongPress: onDelete != null ? () => _showDeleteDialog(context) : null,
+      child: Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -88,6 +97,30 @@ class GoalCard extends ConsumerWidget {
                       const SizedBox(height: 8),
                       // Stats row
                       _GoalStats(goal: goal, isDark: isDark),
+                      // Show linked categories
+                      if (linkedCategories.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.link,
+                              size: 12,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                linkedCategories.map((c) => c.name).join(', '),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -123,10 +156,61 @@ class GoalCard extends ConsumerWidget {
                       ],
                     ),
                   ),
+                
+                // Delete menu
+                if (onDelete != null)
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: isDark ? Colors.white38 : Colors.black38,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _showDeleteDialog(context);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
         ),
+      ),
+    ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Goal'),
+        content: Text('Are you sure you want to delete "${goal.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              onDelete?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

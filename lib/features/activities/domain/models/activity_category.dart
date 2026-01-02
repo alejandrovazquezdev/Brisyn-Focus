@@ -3,37 +3,69 @@ import 'package:hive/hive.dart';
 part 'activity_category.g.dart';
 
 /// Available icons for activities
+@HiveType(typeId: 18)
 enum ActivityIcon {
+  @HiveField(0)
   workout,
+  @HiveField(1)
   cardio,
+  @HiveField(2)
   study,
+  @HiveField(3)
   reading,
+  @HiveField(4)
   coding,
+  @HiveField(5)
   music,
+  @HiveField(6)
   gaming,
+  @HiveField(7)
   meditation,
+  @HiveField(8)
   journal,
+  @HiveField(9)
   language,
+  @HiveField(10)
   art,
+  @HiveField(11)
   cooking,
+  @HiveField(12)
   research,
+  @HiveField(13)
   writing,
+  @HiveField(14)
   plants,
+  @HiveField(15)
   medicine,
+  @HiveField(16)
   work,
+  @HiveField(17)
   meeting,
+  @HiveField(18)
   email,
+  @HiveField(19)
   call,
+  @HiveField(20)
   shopping,
+  @HiveField(21)
   cleaning,
+  @HiveField(22)
   travel,
+  @HiveField(23)
   social,
+  @HiveField(24)
   family,
+  @HiveField(25)
   health,
+  @HiveField(26)
   finance,
+  @HiveField(27)
   learning,
+  @HiveField(28)
   project,
+  @HiveField(29)
   hobby,
+  @HiveField(30)
   custom,
 }
 
@@ -132,6 +164,9 @@ class ActivityCategory {
   @HiveField(7)
   DateTime createdAt;
 
+  @HiveField(8)
+  String? linkedGoalId; // Optional link to a PersonalGoal
+
   ActivityCategory({
     required this.id,
     required this.name,
@@ -140,6 +175,7 @@ class ActivityCategory {
     this.weeklyGoal = 7,
     this.sortOrder = 0,
     this.isDefault = false,
+    this.linkedGoalId,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -152,6 +188,7 @@ class ActivityCategory {
     int? sortOrder,
     bool? isDefault,
     DateTime? createdAt,
+    String? linkedGoalId,
   }) {
     return ActivityCategory(
       id: id ?? this.id,
@@ -162,6 +199,7 @@ class ActivityCategory {
       sortOrder: sortOrder ?? this.sortOrder,
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
+      linkedGoalId: linkedGoalId ?? this.linkedGoalId,
     );
   }
 

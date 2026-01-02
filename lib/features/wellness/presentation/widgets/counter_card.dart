@@ -9,11 +9,13 @@ import '../providers/wellness_providers.dart';
 class CounterCard extends ConsumerWidget {
   final CustomCounter counter;
   final bool isDark;
+  final VoidCallback? onDelete;
 
   const CounterCard({
     super.key,
     required this.counter,
     required this.isDark,
+    this.onDelete,
   });
 
   @override
@@ -25,19 +27,21 @@ class CounterCard extends ConsumerWidget {
         : 0.0;
     final isComplete = currentValue >= counter.targetCount;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isComplete
-              ? counter.color.withOpacity(0.5)
-              : (isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-          width: isComplete ? 2 : 1,
+    return GestureDetector(
+      onLongPress: onDelete != null ? () => _showDeleteDialog(context) : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isComplete
+                ? counter.color.withOpacity(0.5)
+                : (isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+            width: isComplete ? 2 : 1,
+          ),
         ),
-      ),
-      child: Row(
+        child: Row(
         children: [
           // Icon
           Container(
@@ -146,6 +150,57 @@ class CounterCard extends ConsumerWidget {
                   ),
                 ),
             ],
+          ),
+          
+          // Delete button (more menu)
+          if (onDelete != null)
+            PopupMenuButton<String>(
+              icon: Icon(
+                Icons.more_vert,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _showDeleteDialog(context);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Counter'),
+        content: Text('Are you sure you want to delete "${counter.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              onDelete?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),

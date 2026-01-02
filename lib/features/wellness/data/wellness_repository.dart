@@ -106,12 +106,17 @@ class WellnessRepository {
     final todayOnly = DateTime(today.year, today.month, today.day);
     final existingStreak = getStreakForDate(todayOnly);
 
+    // Accumulate minutes and sessions if there's an existing entry
+    final totalMinutes = (existingStreak?.focusMinutes ?? 0) + focusMinutes;
+    final totalSessions = (existingStreak?.sessionsCompleted ?? 0) + sessionsCompleted;
+
     final streak = FocusStreak(
       id: todayOnly.toIso8601String(),
       date: todayOnly,
-      focusMinutes: focusMinutes,
-      sessionsCompleted: sessionsCompleted,
-      goalMet: focusMinutes >= dailyGoalMinutes,
+      focusMinutes: totalMinutes,
+      sessionsCompleted: totalSessions,
+      // Goal is met if at least one session was completed
+      goalMet: totalSessions >= 1,
     );
 
     if (existingStreak != null) {
@@ -274,7 +279,9 @@ class WellnessRepository {
     await updateGoal(updatedGoal);
   }
 
-  /// Get completion rate for a goal (last 7 days)
+  /// Get completion rate for a goal
+  /// For milestone goals: currentValue / targetValue
+  /// For daily/weekly goals: completed days in last 7 days / 7
   double getGoalCompletionRate(String goalId) {
     final goal = getAllGoals().cast<PersonalGoal?>().firstWhere(
           (g) => g!.id == goalId,
@@ -282,6 +289,12 @@ class WellnessRepository {
         );
     if (goal == null) return 0.0;
 
+    // For milestone goals, use currentValue / targetValue
+    if (goal.type == GoalType.milestone && goal.targetValue != null && goal.targetValue! > 0) {
+      return (goal.currentValue / goal.targetValue!).clamp(0.0, 1.0);
+    }
+
+    // For other goal types, count completed days in last 7 days
     int completedDays = 0;
     final now = DateTime.now();
 

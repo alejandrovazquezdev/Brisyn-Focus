@@ -29,13 +29,18 @@ class TaskAdapter extends TypeAdapter<Task> {
       projectId: fields[9] as String?,
       tags: (fields[10] as List?)?.cast<String>(),
       sortOrder: fields[11] as int,
+      status: fields[12] as TaskStatus,
+      parentTaskId: fields[13] as String?,
+      recurrenceType: fields[14] as RecurrenceType,
+      lastRecurrenceDate: fields[15] as DateTime?,
+      recurringSourceId: fields[16] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Task obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(17)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -59,7 +64,17 @@ class TaskAdapter extends TypeAdapter<Task> {
       ..writeByte(10)
       ..write(obj.tags)
       ..writeByte(11)
-      ..write(obj.sortOrder);
+      ..write(obj.sortOrder)
+      ..writeByte(12)
+      ..write(obj.status)
+      ..writeByte(13)
+      ..write(obj.parentTaskId)
+      ..writeByte(14)
+      ..write(obj.recurrenceType)
+      ..writeByte(15)
+      ..write(obj.lastRecurrenceDate)
+      ..writeByte(16)
+      ..write(obj.recurringSourceId);
   }
 
   @override
@@ -87,7 +102,7 @@ class TaskPriorityAdapter extends TypeAdapter<TaskPriority> {
       case 2:
         return TaskPriority.high;
       default:
-        return TaskPriority.medium;
+        return TaskPriority.low;
     }
   }
 
@@ -113,6 +128,99 @@ class TaskPriorityAdapter extends TypeAdapter<TaskPriority> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TaskPriorityAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class TaskStatusAdapter extends TypeAdapter<TaskStatus> {
+  @override
+  final int typeId = 16;
+
+  @override
+  TaskStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return TaskStatus.todo;
+      case 1:
+        return TaskStatus.inProgress;
+      case 2:
+        return TaskStatus.done;
+      default:
+        return TaskStatus.todo;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, TaskStatus obj) {
+    switch (obj) {
+      case TaskStatus.todo:
+        writer.writeByte(0);
+        break;
+      case TaskStatus.inProgress:
+        writer.writeByte(1);
+        break;
+      case TaskStatus.done:
+        writer.writeByte(2);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TaskStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class RecurrenceTypeAdapter extends TypeAdapter<RecurrenceType> {
+  @override
+  final int typeId = 17;
+
+  @override
+  RecurrenceType read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return RecurrenceType.none;
+      case 1:
+        return RecurrenceType.daily;
+      case 2:
+        return RecurrenceType.weekly;
+      case 3:
+        return RecurrenceType.monthly;
+      default:
+        return RecurrenceType.none;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, RecurrenceType obj) {
+    switch (obj) {
+      case RecurrenceType.none:
+        writer.writeByte(0);
+        break;
+      case RecurrenceType.daily:
+        writer.writeByte(1);
+        break;
+      case RecurrenceType.weekly:
+        writer.writeByte(2);
+        break;
+      case RecurrenceType.monthly:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecurrenceTypeAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

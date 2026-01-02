@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/routes.dart';
 import '../../app/theme/colors.dart';
+import '../../features/timer/presentation/providers/timer_session_handler.dart';
 
 /// Current navigation index provider
 final currentNavIndexProvider = StateProvider<int>((ref) => 0);
@@ -20,6 +21,9 @@ class MainScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Initialize the timer session handler to connect timer to activities/goals
+    ref.watch(timerSessionHandlerProvider);
+    
     final currentIndex = ref.watch(currentNavIndexProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -70,11 +74,20 @@ class MainScaffold extends ConsumerWidget {
                   },
                 ),
                 _NavItem(
-                  icon: 'assets/icons/settings.svg',
-                  label: 'Settings',
+                  icon: 'assets/icons/heartbeat.svg',
+                  label: 'Wellness',
                   isSelected: currentIndex == 3,
                   onTap: () {
                     ref.read(currentNavIndexProvider.notifier).state = 3;
+                    context.go(AppRoutes.wellness);
+                  },
+                ),
+                _NavItem(
+                  icon: 'assets/icons/settings.svg',
+                  label: 'Settings',
+                  isSelected: currentIndex == 4,
+                  onTap: () {
+                    ref.read(currentNavIndexProvider.notifier).state = 4;
                     context.go(AppRoutes.settings);
                   },
                 ),

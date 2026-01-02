@@ -3,10 +3,17 @@ import 'dart:io' show Platform;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import '../../../../core/services/desktop_auth_service.dart';
 import '../models/app_user.dart';
 
 // iOS/macOS Client ID for Google Sign-In (uses same iOS client for macOS)
 const _iosClientId = '150222395140-i35k566eods32brujsudb2s1mjkubur4.apps.googleusercontent.com';
+
+/// Check if we're on desktop platform
+bool get _isDesktop {
+  if (kIsWeb) return false;
+  return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+}
 
 /// Authentication result wrapper
 class AuthResult {
@@ -62,13 +69,35 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   /// Check if user is logged in
-  bool get isLoggedIn => currentUser != null;
+  bool get isLoggedIn {
+    // On desktop, check our custom auth service
+    if (_isDesktop) {
+      return DesktopAuthService.instance.isLoggedIn;
+    }
+    return currentUser != null;
+  }
 
   /// Check if email is verified
-  bool get isEmailVerified => currentUser?.emailVerified ?? false;
+  bool get isEmailVerified {
+    if (_isDesktop) {
+      return DesktopAuthService.instance.isEmailVerified;
+    }
+    return currentUser?.emailVerified ?? false;
+  }
 
   /// Convert Firebase User to AppUser
   AppUser? get currentAppUser {
+    // On desktop, use our custom service
+    if (_isDesktop && DesktopAuthService.instance.isLoggedIn) {
+      return AppUser(
+        uid: DesktopAuthService.instance.currentUserId!,
+        email: DesktopAuthService.instance.currentEmail,
+        displayName: DesktopAuthService.instance.currentDisplayName,
+        emailVerified: DesktopAuthService.instance.isEmailVerified,
+        createdAt: DateTime.now(),
+      );
+    }
+    
     final user = currentUser;
     if (user == null) return null;
     return AppUser.fromFirebaseUser(
@@ -90,6 +119,30 @@ class AuthService {
     required String password,
     String? displayName,
   }) async {
+    // Use desktop auth service on macOS/Windows/Linux
+    if (_isDesktop) {
+      final result = await DesktopAuthService.instance.signUpWithEmail(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      
+      if (result.success) {
+        return AuthResult.needsVerification(
+          AppUser(
+            uid: result.userId!,
+            email: result.email,
+            displayName: result.displayName,
+            emailVerified: false,
+            createdAt: DateTime.now(),
+          ),
+        );
+      } else {
+        return AuthResult.failure(result.error ?? 'Sign up failed');
+      }
+    }
+
+    // Standard Firebase Auth for mobile/web
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -130,6 +183,33 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    // Use desktop auth service on macOS/Windows/Linux
+    if (_isDesktop) {
+      debugPrint('AuthService: Using DesktopAuthService for sign in');
+      final result = await DesktopAuthService.instance.signInWithEmail(
+        email: email,
+        password: password,
+      );
+      
+      if (result.success) {
+        final user = AppUser(
+          uid: result.userId!,
+          email: result.email,
+          displayName: result.displayName,
+          emailVerified: result.emailVerified,
+          createdAt: DateTime.now(),
+        );
+        
+        if (!result.emailVerified) {
+          return AuthResult.needsVerification(user);
+        }
+        return AuthResult.success(user);
+      } else {
+        return AuthResult.failure(result.error ?? 'Sign in failed');
+      }
+    }
+
+    // Standard Firebase Auth for mobile/web
     try {
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -164,14 +244,32 @@ class AuthService {
         ),
       );
     } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Error: ${e.code} - ${e.message}');
       return AuthResult.failure(_getErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('An unexpected error occurred');
+      debugPrint('Sign in error: $e');
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('invalid-credential') || 
+          errorStr.contains('invalid_login_credentials') ||
+          errorStr.contains('wrong-password')) {
+        return AuthResult.failure('Invalid email or password.');
+      }
+      return AuthResult.failure('An unexpected error occurred. Please try again.');
     }
   }
 
   /// Send password reset email
   Future<AuthResult> sendPasswordResetEmail(String email) async {
+    // Use desktop service on desktop
+    if (_isDesktop) {
+      final result = await DesktopAuthService.instance.sendPasswordResetEmail(email);
+      if (result.success) {
+        return const AuthResult(success: true);
+      } else {
+        return AuthResult.failure(result.error ?? 'Failed to send reset email');
+      }
+    }
+
     try {
       await _auth.sendPasswordResetEmail(email: email);
       return const AuthResult(success: true);
@@ -184,6 +282,16 @@ class AuthService {
 
   /// Resend email verification
   Future<AuthResult> resendEmailVerification() async {
+    // Use desktop service on desktop
+    if (_isDesktop) {
+      final success = await DesktopAuthService.instance.resendEmailVerification();
+      if (success) {
+        return const AuthResult(success: true);
+      } else {
+        return AuthResult.failure('Failed to resend verification email');
+      }
+    }
+
     try {
       final user = currentUser;
       if (user == null) {
@@ -200,6 +308,11 @@ class AuthService {
 
   /// Reload user to check email verification status
   Future<bool> checkEmailVerified() async {
+    // Use desktop service on desktop
+    if (_isDesktop) {
+      return await DesktopAuthService.instance.checkEmailVerified();
+    }
+
     try {
       await currentUser?.reload();
       return currentUser?.emailVerified ?? false;
@@ -274,6 +387,12 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
+    // Use desktop service on desktop
+    if (_isDesktop) {
+      await DesktopAuthService.instance.signOut();
+      return;
+    }
+    
     await Future.wait([
       _auth.signOut(),
       _googleSignIn.signOut(),
@@ -354,7 +473,7 @@ class AuthService {
 
   /// Convert Firebase error codes to user-friendly messages
   String _getErrorMessage(String code) {
-    switch (code) {
+    switch (code.toLowerCase()) {
       case 'email-already-in-use':
         return 'This email is already registered. Try signing in instead.';
       case 'invalid-email':
@@ -368,8 +487,8 @@ class AuthService {
       case 'user-not-found':
         return 'No account found with this email.';
       case 'wrong-password':
-        return 'Incorrect password. Please try again.';
       case 'invalid-credential':
+      case 'invalid_login_credentials':
         return 'Invalid email or password.';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
@@ -378,6 +497,7 @@ class AuthService {
       case 'requires-recent-login':
         return 'Please sign in again to complete this action.';
       default:
+        debugPrint('Unknown Firebase error code: $code');
         return 'An error occurred. Please try again.';
     }
   }

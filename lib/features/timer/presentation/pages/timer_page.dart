@@ -5,6 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../activities/domain/models/activity_category.dart';
+import '../../../activities/presentation/providers/activities_providers.dart';
 import '../providers/timer_providers.dart';
 
 class TimerPage extends ConsumerStatefulWidget {
@@ -77,6 +79,7 @@ class _TimerPageState extends ConsumerState<TimerPage>
     final accentColor = theme.colorScheme.primary;
     final timerState = ref.watch(timerProvider);
     final isRunning = timerState.status == TimerStatus.running;
+    final categories = ref.watch(activitiesProvider).categories;
 
     // Get phase color
     Color phaseColor;
@@ -275,6 +278,22 @@ class _TimerPageState extends ConsumerState<TimerPage>
 
               const SizedBox(height: 32),
 
+              // Category Selector (only show when idle and in focus mode)
+              if (timerState.phase == TimerPhase.focus &&
+                  timerState.status == TimerStatus.idle)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _CategorySelector(
+                    categories: categories,
+                    selectedCategoryId: timerState.selectedCategoryId,
+                    onSelect: (categoryId) {
+                      ref.read(timerProvider.notifier).selectCategory(categoryId);
+                    },
+                    isDark: isDark,
+                    accentColor: accentColor,
+                  ),
+                ),
+
               // Timer Presets (only show when idle and in focus mode)
               if (timerState.phase == TimerPhase.focus &&
                   timerState.status == TimerStatus.idle)
@@ -284,7 +303,7 @@ class _TimerPageState extends ConsumerState<TimerPage>
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [15, 25, 50, 90].map((minutes) {
+                      children: [1, 15, 25, 50, 90].map((minutes) {
                         final isSelected = timerState.focusDuration == minutes;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -720,7 +739,7 @@ class _TimerSettingsSheetState extends State<_TimerSettingsSheet> {
             label: 'Sessions before long break',
             value: '$_sessions',
             onDecrease: () {
-              if (_sessions > 2) setState(() => _sessions--);
+              if (_sessions > 1) setState(() => _sessions--);
             },
             onIncrease: () {
               if (_sessions < 8) setState(() => _sessions++);
@@ -837,6 +856,160 @@ class _SettingRow extends StatelessWidget {
             iconSize: 24,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Category selector for focus sessions
+class _CategorySelector extends StatelessWidget {
+  final List<ActivityCategory> categories;
+  final String? selectedCategoryId;
+  final Function(String?) onSelect;
+  final bool isDark;
+  final Color accentColor;
+
+  const _CategorySelector({
+    required this.categories,
+    required this.selectedCategoryId,
+    required this.onSelect,
+    required this.isDark,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Focus on',
+            style: AppTypography.labelMedium(
+              isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              // "Just Focus" option (no category)
+              _CategoryChip(
+                label: 'Just Focus',
+                icon: Icons.bolt,
+                color: accentColor,
+                isSelected: selectedCategoryId == null,
+                onTap: () => onSelect(null),
+                isDark: isDark,
+              ),
+              const SizedBox(width: 8),
+              // User categories
+              ...categories.map((category) {
+                final isSelected = selectedCategoryId == category.id;
+                final color = Color(category.colorValue);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _CategoryChip(
+                    label: category.name,
+                    svgIcon: getIconAsset(category.icon),
+                    color: color,
+                    isSelected: isSelected,
+                    onTap: () => onSelect(category.id),
+                    isDark: isDark,
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Category chip widget
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final String? svgIcon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _CategoryChip({
+    required this.label,
+    this.icon,
+    this.svgIcon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.2)
+              : isDark
+                  ? AppColors.darkSurface
+                  : AppColors.lightSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null)
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? color
+                    : isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+              )
+            else if (svgIcon != null)
+              SvgPicture.asset(
+                svgIcon!,
+                width: 18,
+                height: 18,
+                colorFilter: ColorFilter.mode(
+                  isSelected
+                      ? color
+                      : isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                  BlendMode.srcIn,
+                ),
+              ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? color
+                    : isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.lightTextPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

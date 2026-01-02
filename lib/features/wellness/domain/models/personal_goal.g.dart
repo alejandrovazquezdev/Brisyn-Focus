@@ -26,9 +26,9 @@ class PersonalGoalAdapter extends TypeAdapter<PersonalGoal> {
       createdAt: fields[6] as DateTime,
       targetDate: fields[7] as DateTime?,
       targetValue: fields[8] as int?,
-      currentValue: fields[9] as int? ?? 0,
-      isCompleted: fields[10] as bool? ?? false,
-      dailyCompletions: (fields[11] as List?)?.cast<String>() ?? [],
+      currentValue: fields[9] as int,
+      isCompleted: fields[10] as bool,
+      dailyCompletions: (fields[11] as List).cast<String>(),
     );
   }
 
