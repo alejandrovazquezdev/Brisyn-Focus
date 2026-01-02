@@ -534,6 +534,26 @@ img {
     transform: translateY(-2px);
 }
 
+.download-btn.coming-soon {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.download-btn.coming-soon:hover {
+    transform: none;
+    border-color: var(--color-border);
+}
+
+.platform-icon.available {
+    color: var(--color-success);
+}
+
+.platform-icon.coming-soon {
+    opacity: 0.5;
+    font-style: italic;
+}
+
 .download-label {
     display: flex;
     flex-direction: column;
